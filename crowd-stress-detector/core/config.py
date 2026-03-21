@@ -5,7 +5,7 @@ VIDEO_EXTENSIONS = ["mp4", "mov", "avi", "mkv"]
 
 PERSON_CLASS_ID = 0
 YOLO_MODEL_NAME = "yolov8m.pt"
-TRACKER_CONFIG = "botsort.yaml"
+TRACKER_CONFIG = "bytetrack.yaml"
 TRACK_MAX_DETECTIONS = 300
 
 DEFAULT_EXIT_ZONES = [

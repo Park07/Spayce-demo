@@ -567,7 +567,7 @@ def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: l
             if d2 < nearest_dist:
                 nearest_dist = d2
                 nearest_prev_id = pid
-        if nearest_prev_id is not None and nearest_prev_id != cid and nearest_dist < 35 * 35:
+        if nearest_prev_id is not None and nearest_prev_id != cid and nearest_dist < 20 * 20:
             tracking_quality["id_switches"] += 1
 
     tracking_quality["seen_ids"].update(current_ids)
@@ -578,7 +578,7 @@ def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: l
 
 def _tracking_stability(tracking_quality: dict[str, Any]) -> float:
     active = max(1, tracking_quality["active_tracks"])
-    penalty = (tracking_quality["id_switches"] * 0.8 + tracking_quality["lost_tracks"] * 0.15) / (active + 5)
+    penalty = (tracking_quality["id_switches"] * 0.3 + tracking_quality["lost_tracks"] * 0.05) / (active + 20)
     return max(0.0, min(1.0, 1.0 - penalty))
 
 
