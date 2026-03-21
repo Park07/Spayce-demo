@@ -46,3 +46,28 @@ ANOMALY_THRESHOLDS = {
 
 PREDICTION_WINDOW_SECONDS = 15
 MAX_REASON_COUNT = 4
+# Zone adjacency (directional flow graph)
+# Weight: 1.0 = directly connected, exp(-1) ≈ 0.37 = 2 hops, from BINTS k-hop (Section 4.1)
+ZONE_ADJACENCY = {
+    ("Gate B", "Bottleneck C"): 1.0,
+    ("Bottleneck C", "Exit A"): 1.0,
+    ("Gate B", "Exit A"): 0.37,
+}
+
+# Research-backed crowd density thresholds (persons/m²)
+# Source: Itaewon analysis (ScienceDirect 2025), Keith Still PhD, PLOS ONE 2021
+CROWD_DENSITY_THRESHOLDS = {
+    "free_flow": 2.0,
+    "maximum_flow": 4.0,
+    "critical_stationary": 4.7,
+    "critical_moving": 4.0,
+    "crush_risk": 5.0,
+    "itaewon_critical": 6.9,
+}
+
+# BINTS-inspired prediction weights (from Table 5, Section 5.5.2)
+PREDICTION_WEIGHTS = {
+    "prediction": 0.5,
+    "spatial": 0.25,
+    "temporal": 0.25,
+}

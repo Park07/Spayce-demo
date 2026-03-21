@@ -13,6 +13,7 @@ from core.anomaly import detect_anomalies
 from core.detector import PersonDetector, draw_detections
 from core.heatmap import build_heatmap_overlay, overlay_heatmap
 from core.metrics import compute_avg_speed, compute_clustering_pressure, compute_direction_consistency, compute_people_density
+from core.prediction import BiModalPredictor
 from core.recommendations import build_alerts, build_recommendations
 from core.risk import compute_crowd_stress_risk, predict_crowd_stress_risk
 from core.utils import ensure_dir
@@ -56,6 +57,11 @@ def process_video_file(
         else:
             zones = build_default_zones(frame_width, frame_height)
 
+    # Initialize BINTS-inspired bi-modal predictor
+    zone_names = [z["name"] for z in zones] if zones else []
+    zone_types = {z["name"]: z["type"] for z in zones} if zones else {}
+    bimodal_predictor = BiModalPredictor(zone_names=zone_names, zone_types=zone_types)
+
     processed_dir = ensure_dir(root_dir / "outputs" / "processed")
     session_id = uuid.uuid4().hex[:8]
     out_path = processed_dir / f"{input_path.stem}_{session_id}_processed.mp4"
@@ -66,6 +72,7 @@ def process_video_file(
     latest_alerts: list[str] = []
     latest_recommendations: list[str] = []
     latest_zone_metrics: list[dict[str, Any]] = []
+    latest_zone_predictions: dict[str, Any] = {}
     previous_density = 0.0
     risk_history: list[float] = []
     bottleneck_risk_history: list[float] = []
@@ -96,6 +103,15 @@ def process_video_file(
         cluster_pressure = compute_clustering_pressure(tracked_people)
 
         zone_metrics = compute_zone_metrics(zones, tracked_people, frame_area) if zones else []
+
+        # Bi-modal prediction (BINTS-inspired)
+        if zones:
+            bimodal_predictor.update(tracked_people, zones)
+            zone_predictions = bimodal_predictor.predict()
+        else:
+            zone_predictions = {}
+        latest_zone_predictions = zone_predictions
+
         max_zone_risk = max((z["local_risk"] for z in zone_metrics), default=0.0)
         max_zone_density = max((z["local_density"] for z in zone_metrics), default=0.0)
         bottleneck_risk = max((z["local_risk"] for z in zone_metrics if z["zone_type"] == "bottleneck"), default=0.0)
@@ -128,6 +144,19 @@ def process_video_file(
         latest_alerts = build_alerts(risk_obj["risk_level"], predicted_risk, anomalies, zone_metrics)
         if predicted_bottleneck_risk >= 0.65:
             latest_alerts.append("Predicted bottleneck escalation in next 15 seconds.")
+
+        # Add bi-modal prediction alerts
+        for zname, zpred in zone_predictions.items():
+            if zpred.get("time_to_critical") is not None and zpred["time_to_critical"] < 60:
+                latest_alerts.append(
+                    f"BIMODAL: {zname} predicted critical in {zpred['time_to_critical']:.0f}s"
+                    f" (inflow from {zpred.get('primary_inflow_source', 'unknown')})"
+                )
+            if zpred.get("cross_modal_alert"):
+                latest_alerts.append(f"BIMODAL: Unusual density-flow divergence at {zname}")
+            if zpred.get("risk_trend") == "rapidly_increasing":
+                latest_alerts.append(f"BIMODAL: {zname} density rapidly increasing")
+
         latest_recommendations = build_recommendations(latest_alerts, zone_metrics)
         latest_zone_metrics = zone_metrics
 
@@ -149,8 +178,26 @@ def process_video_file(
             cv2.LINE_AA,
         )
 
+        # Draw bi-modal prediction info on frame
+        y_offset = 55
+        for zname, zpred in zone_predictions.items():
+            ttc = zpred.get("time_to_critical")
+            ttc_str = f"{ttc:.0f}s" if ttc is not None else "safe"
+            trend = zpred.get("risk_trend", "stable")
+            color = (0, 255, 0) if trend == "stable" else (0, 165, 255) if "increasing" in trend else (0, 0, 255) if "rapidly" in trend else (200, 200, 200)
+            cv2.putText(
+                annotated,
+                f"{zname}: pred={zpred.get('predicted_density', 0):.0f} | ttc={ttc_str} | {trend}",
+                (16, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+            y_offset += 18
+
         if enable_multi_camera:
-            # Demo-only mocked split screen using repeated feed.
             resized = cv2.resize(annotated, (frame_width // 2, frame_height // 2))
             top = np.hstack([resized, resized])
             bottom = np.hstack([resized, resized])
@@ -186,6 +233,10 @@ def process_video_file(
                 "lost_tracks": tracking_quality["lost_tracks"],
                 "recovered_tracks": tracking_quality["recovered_tracks"],
                 "tracking_stability": _tracking_stability(tracking_quality),
+                "bimodal_predicted_risk": max(
+                    (zp.get("predicted_density", 0) for zp in zone_predictions.values()),
+                    default=0.0,
+                ) if zone_predictions else 0.0,
             }
         )
         previous_density = density
@@ -215,6 +266,7 @@ def process_video_file(
                     "lost_tracks": 0,
                     "recovered_tracks": 0,
                     "tracking_stability": 1.0,
+                    "bimodal_predicted_risk": 0.0,
                 }
             ]
         )
@@ -242,6 +294,8 @@ def process_video_file(
         "lost_tracks": int(timeline_df["lost_tracks"].iloc[-1]),
         "recovered_tracks": int(timeline_df["recovered_tracks"].iloc[-1]),
         "tracking_stability": float(timeline_df["tracking_stability"].iloc[-1]),
+        "zone_predictions": latest_zone_predictions,
+        "flow_matrix": bimodal_predictor.get_flow_matrix() if zones else {},
     }
     return {
         "summary": summary,
@@ -294,6 +348,10 @@ def init_live_state(
         else:
             zones = build_default_zones(frame_width, frame_height)
 
+    # Initialize BINTS-inspired bi-modal predictor for livestream
+    zone_names = [z["name"] for z in zones] if zones else []
+    zone_types = {z["name"]: z["type"] for z in zones} if zones else {}
+
     return {
         "source": stream_source,
         "stream_url": stream_url,
@@ -316,6 +374,7 @@ def init_live_state(
         "latest_alerts": [],
         "latest_recommendations": [],
         "latest_zone_metrics": [],
+        "bimodal_predictor": BiModalPredictor(zone_names=zone_names, zone_types=zone_types),
     }
 
 
@@ -343,6 +402,14 @@ def process_live_frame(
     cluster_pressure = compute_clustering_pressure(tracked_people)
 
     zone_metrics = compute_zone_metrics(state["zones"], tracked_people, state["frame_area"]) if state["zones"] else []
+
+    # Bi-modal prediction (BINTS-inspired)
+    if state["zones"]:
+        state["bimodal_predictor"].update(tracked_people, state["zones"])
+        zone_predictions = state["bimodal_predictor"].predict()
+    else:
+        zone_predictions = {}
+
     max_zone_risk = max((z["local_risk"] for z in zone_metrics), default=0.0)
     max_zone_density = max((z["local_density"] for z in zone_metrics), default=0.0)
     bottleneck_risk = max((z["local_risk"] for z in zone_metrics if z["zone_type"] == "bottleneck"), default=0.0)
@@ -374,6 +441,19 @@ def process_live_frame(
     state["latest_alerts"] = build_alerts(risk_obj["risk_level"], predicted_risk, anomalies, zone_metrics)
     if predicted_bottleneck_risk >= 0.65:
         state["latest_alerts"].append("Predicted bottleneck escalation in next 15 seconds.")
+
+    # Add bi-modal prediction alerts
+    for zname, zpred in zone_predictions.items():
+        if zpred.get("time_to_critical") is not None and zpred["time_to_critical"] < 60:
+            state["latest_alerts"].append(
+                f"BIMODAL: {zname} predicted critical in {zpred['time_to_critical']:.0f}s"
+                f" (inflow from {zpred.get('primary_inflow_source', 'unknown')})"
+            )
+        if zpred.get("cross_modal_alert"):
+            state["latest_alerts"].append(f"BIMODAL: Unusual density-flow divergence at {zname}")
+        if zpred.get("risk_trend") == "rapidly_increasing":
+            state["latest_alerts"].append(f"BIMODAL: {zname} density rapidly increasing")
+
     state["latest_recommendations"] = build_recommendations(state["latest_alerts"], zone_metrics)
     state["latest_zone_metrics"] = zone_metrics
 
@@ -393,6 +473,25 @@ def process_live_frame(
         2,
         cv2.LINE_AA,
     )
+
+    # Draw bi-modal prediction info on frame
+    y_offset = 55
+    for zname, zpred in zone_predictions.items():
+        ttc = zpred.get("time_to_critical")
+        ttc_str = f"{ttc:.0f}s" if ttc is not None else "safe"
+        trend = zpred.get("risk_trend", "stable")
+        color = (0, 255, 0) if trend == "stable" else (0, 165, 255) if "increasing" in trend else (0, 0, 255) if "rapidly" in trend else (200, 200, 200)
+        cv2.putText(
+            annotated,
+            f"{zname}: pred={zpred.get('predicted_density', 0):.0f} | ttc={ttc_str} | {trend}",
+            (16, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 18
 
     state["timeline_rows"].append(
         {
@@ -414,6 +513,10 @@ def process_live_frame(
             "lost_tracks": state["tracking_quality"]["lost_tracks"],
             "recovered_tracks": state["tracking_quality"]["recovered_tracks"],
             "tracking_stability": _tracking_stability(state["tracking_quality"]),
+            "bimodal_predicted_risk": max(
+                (zp.get("predicted_density", 0) for zp in zone_predictions.values()),
+                default=0.0,
+            ) if zone_predictions else 0.0,
         }
     )
     state["previous_density"] = density
@@ -424,6 +527,7 @@ def process_live_frame(
         "current_risk": current_risk,
         "predicted_risk": predicted_risk,
         "predicted_bottleneck_risk": predicted_bottleneck_risk,
+        "zone_predictions": zone_predictions,
     }
 
 
@@ -450,6 +554,7 @@ def live_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
                     "lost_tracks": 0,
                     "recovered_tracks": 0,
                     "tracking_stability": 1.0,
+                    "bimodal_predicted_risk": 0.0,
                 }
             ]
         )
@@ -475,6 +580,8 @@ def live_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
         "lost_tracks": int(timeline_df["lost_tracks"].iloc[-1]),
         "recovered_tracks": int(timeline_df["recovered_tracks"].iloc[-1]),
         "tracking_stability": float(timeline_df["tracking_stability"].iloc[-1]),
+        "zone_predictions": state["bimodal_predictor"].predict() if state.get("bimodal_predictor") else {},
+        "flow_matrix": state["bimodal_predictor"].get_flow_matrix() if state.get("bimodal_predictor") else {},
     }
     return {
         "summary": summary,
