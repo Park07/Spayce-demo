@@ -551,10 +551,28 @@ def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: l
     prev_ids = tracking_quality["prev_ids"]
     prev_points = tracking_quality["prev_points"]
 
-    lost_now = prev_ids - current_ids
-    recovered_now = {tid for tid in current_ids if tid in tracking_quality["seen_ids"] and tid not in prev_ids}
-    tracking_quality["lost_tracks"] += len(lost_now)
-    tracking_quality["recovered_tracks"] += len(recovered_now)
+    # Track missing streaks instead of immediately counting lost
+    missing_streaks = tracking_quality.setdefault("missing_streaks", {})
+
+    # Update missing streaks for IDs not in current frame
+    for tid in prev_ids - current_ids:
+        missing_streaks[tid] = missing_streaks.get(tid, 0) + 1
+        if missing_streaks[tid] == 3:  # Only count as lost after 3 consecutive missing frames
+            tracking_quality["lost_tracks"] += 1
+
+    # Reset streak for IDs that reappeared
+    recovered_now = set()
+    for tid in current_ids:
+        if tid in missing_streaks and missing_streaks[tid] > 0:
+            if missing_streaks[tid] >= 3 and tid in tracking_quality["seen_ids"]:
+                tracking_quality["recovered_tracks"] += 1
+                recovered_now.add(tid)
+            missing_streaks[tid] = 0
+
+    # Clean up old streaks
+    for tid in list(missing_streaks.keys()):
+        if missing_streaks[tid] > 30:
+            del missing_streaks[tid]
 
     # Approximate ID-switch: nearest previous track was another ID.
     for cid, cpt in current_points.items():
