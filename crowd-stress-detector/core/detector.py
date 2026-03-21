@@ -43,7 +43,7 @@ class PersonDetector:
             frame,
             verbose=False,
             conf=confidence,
-            iou=0.5,
+            iou=0.3,
             classes=[PERSON_CLASS_ID],
             persist=True,
             tracker=TRACKER_CONFIG,
