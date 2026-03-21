@@ -8,7 +8,7 @@ from typing import Any
 class CentroidTracker:
     """A lightweight centroid tracker for demo-friendly ID persistence."""
 
-    def __init__(self, max_match_distance: float = 65.0, max_missing_frames: int = 12) -> None:
+    def __init__(self, max_match_distance: float = 35.0, max_missing_frames: int = 20) -> None:
         self.max_match_distance = max_match_distance
         self.max_missing_frames = max_missing_frames
         self.next_track_id = 1
