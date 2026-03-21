@@ -18,6 +18,7 @@ from app.ui import (
     render_metrics_header,
     render_recommendations,
     render_trend_charts,
+    render_zone_predictions,
     render_zone_table,
 )
 from core.config import APP_TITLE, VIDEO_EXTENSIONS
@@ -210,6 +211,8 @@ def main() -> None:
             st.session_state.pop("uploaded_video_path", None)
         source_key = input_path.name if input_path is not None else "uploaded_source"
 
+        # Zone editor bypassed — uses config defaults directly
+        # To re-enable: uncomment below and remove pass
         if controls["enable_zones"] and input_path is not None:
             pass  # normalized_zones = _zone_editor(source_key, input_path)
 
@@ -311,7 +314,6 @@ def main() -> None:
                 if controls["enable_zones"] and last_frame is not None:
                     edited = _zone_editor_from_frame(live_key, last_frame)
                     st.session_state[f"zone_editor_{live_key}"] = edited
-                    # Apply edited zones immediately on resume.
                     state["zones"] = build_zones_from_normalized(
                         edited,
                         int(last_frame.shape[1]),
@@ -334,7 +336,14 @@ def main() -> None:
         render_alerts(session["alerts"])
         render_recommendations(session["recommendations"])
     with col_right:
-        render_zone_table(session["zone_snapshots"])
+        # Use peak zone snapshots if available, fall back to latest
+        zone_data = session.get("peak_zone_snapshots", session["zone_snapshots"])
+        render_zone_table(zone_data)
+
+    # Render bi-modal zone predictions
+    zone_preds = session.get("summary", {}).get("zone_predictions", {})
+    if zone_preds:
+        render_zone_predictions(zone_preds)
 
     if controls["show_trends"]:
         render_trend_charts(session["timeline_df"])

@@ -60,7 +60,8 @@ def process_video_file(
     # Initialize BINTS-inspired bi-modal predictor
     zone_names = [z["name"] for z in zones] if zones else []
     zone_types = {z["name"]: z["type"] for z in zones} if zones else {}
-    bimodal_predictor = BiModalPredictor(zone_names=zone_names, zone_types=zone_types, critical_density_per_zone=10.0)
+    bimodal_predictor = BiModalPredictor(zone_names=zone_names, zone_types=zone_types)
+
     processed_dir = ensure_dir(root_dir / "outputs" / "processed")
     session_id = uuid.uuid4().hex[:8]
     out_path = processed_dir / f"{input_path.stem}_{session_id}_processed.mp4"
@@ -72,6 +73,9 @@ def process_video_file(
     latest_recommendations: list[str] = []
     latest_zone_metrics: list[dict[str, Any]] = []
     latest_zone_predictions: dict[str, Any] = {}
+    peak_zone_metrics: list[dict[str, Any]] = []
+    peak_zone_total_count = 0
+    peak_zone_predictions: dict[str, Any] = {}
     previous_density = 0.0
     risk_history: list[float] = []
     bottleneck_risk_history: list[float] = []
@@ -110,6 +114,13 @@ def process_video_file(
         else:
             zone_predictions = {}
         latest_zone_predictions = zone_predictions
+
+        # Track peak zone metrics (busiest frame, not last frame)
+        current_zone_total = sum(z["count"] for z in zone_metrics) if zone_metrics else 0
+        if current_zone_total > peak_zone_total_count:
+            peak_zone_total_count = current_zone_total
+            peak_zone_metrics = [dict(z) for z in zone_metrics]
+            peak_zone_predictions = dict(zone_predictions)
 
         max_zone_risk = max((z["local_risk"] for z in zone_metrics), default=0.0)
         max_zone_density = max((z["local_density"] for z in zone_metrics), default=0.0)
@@ -293,7 +304,7 @@ def process_video_file(
         "lost_tracks": int(timeline_df["lost_tracks"].iloc[-1]),
         "recovered_tracks": int(timeline_df["recovered_tracks"].iloc[-1]),
         "tracking_stability": float(timeline_df["tracking_stability"].iloc[-1]),
-        "zone_predictions": latest_zone_predictions,
+        "zone_predictions": peak_zone_predictions if peak_zone_predictions else latest_zone_predictions,
         "flow_matrix": bimodal_predictor.get_flow_matrix() if zones else {},
     }
     return {
@@ -301,6 +312,7 @@ def process_video_file(
         "alerts": latest_alerts,
         "recommendations": latest_recommendations,
         "zone_snapshots": latest_zone_metrics,
+        "peak_zone_snapshots": peak_zone_metrics if peak_zone_metrics else latest_zone_metrics,
         "timeline_df": timeline_df if show_trends else pd.DataFrame(),
         "anomalies": all_anomalies,
         "processed_video_path": str(out_path),
@@ -587,6 +599,7 @@ def live_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
         "alerts": state["latest_alerts"],
         "recommendations": state["latest_recommendations"],
         "zone_snapshots": state["latest_zone_metrics"],
+        "peak_zone_snapshots": state["latest_zone_metrics"],
         "timeline_df": timeline_df,
         "anomalies": state["all_anomalies"],
         "processed_video_path": "",
