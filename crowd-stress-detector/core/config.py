@@ -9,13 +9,13 @@ TRACKER_CONFIG = "bytetrack.yaml"
 TRACK_MAX_DETECTIONS = 300
 
 DEFAULT_EXIT_ZONES = [
-    {"name": "Exit A", "type": "exit", "rect": (0.78, 0.65, 0.98, 0.98)},
+    {"name": "Exit A", "type": "exit", "rect": (0.65, 0.0, 1.0, 1.0)},
 ]
 DEFAULT_ENTRY_ZONES = [
-    {"name": "Gate B", "type": "entry", "rect": (0.02, 0.60, 0.20, 0.98)},
+    {"name": "Gate B", "type": "entry", "rect": (0.0, 0.0, 0.35, 1.0)},
 ]
 DEFAULT_BOTTLENECK_ZONES = [
-    {"name": "Bottleneck C", "type": "bottleneck", "rect": (0.40, 0.35, 0.62, 0.80)},
+    {"name": "Bottleneck C", "type": "bottleneck", "rect": (0.25, 0.0, 0.75, 1.0)},
 ]
 
 HEATMAP_BLUR_KERNEL = (41, 41)

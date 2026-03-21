@@ -60,8 +60,7 @@ def process_video_file(
     # Initialize BINTS-inspired bi-modal predictor
     zone_names = [z["name"] for z in zones] if zones else []
     zone_types = {z["name"]: z["type"] for z in zones} if zones else {}
-    bimodal_predictor = BiModalPredictor(zone_names=zone_names, zone_types=zone_types)
-
+    bimodal_predictor = BiModalPredictor(zone_names=zone_names, zone_types=zone_types, critical_density_per_zone=10.0)
     processed_dir = ensure_dir(root_dir / "outputs" / "processed")
     session_id = uuid.uuid4().hex[:8]
     out_path = processed_dir / f"{input_path.stem}_{session_id}_processed.mp4"

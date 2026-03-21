@@ -211,7 +211,7 @@ def main() -> None:
         source_key = input_path.name if input_path is not None else "uploaded_source"
 
         if controls["enable_zones"] and input_path is not None:
-            normalized_zones = _zone_editor(source_key, input_path)
+            pass  # normalized_zones = _zone_editor(source_key, input_path)
 
         process_btn = st.button("Process Session", type="primary")
         if process_btn:
