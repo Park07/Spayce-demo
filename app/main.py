@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +14,7 @@ if str(ROOT_DIR) not in sys.path:
 from app.theme import apply_dark_theme
 from app.ui import (
     render_alerts,
+    render_live_overview,
     render_metrics_header,
     render_recommendations,
     render_trend_charts,
@@ -46,6 +46,7 @@ def _sidebar_controls() -> dict[str, Any]:
     confidence = st.sidebar.slider("Detection confidence", min_value=0.1, max_value=0.9, value=0.35, step=0.05)
     sample_stride = st.sidebar.slider("Frame sampling stride", min_value=1, max_value=5, value=1, step=1)
     live_speed = st.sidebar.select_slider("Live playback speed", options=["1x", "2x", "4x"], value="1x")
+    auto_start_live = st.sidebar.toggle("Auto-start live overview", value=True)
     return {
         "show_heatmap": show_heatmap,
         "enable_zones": enable_zones,
@@ -54,6 +55,7 @@ def _sidebar_controls() -> dict[str, Any]:
         "confidence": confidence,
         "sample_stride": sample_stride,
         "live_speed": live_speed,
+        "auto_start_live": auto_start_live,
     }
 
 
@@ -154,6 +156,108 @@ def _zone_editor_from_frame(video_key: str, frame_bgr, initial_zones: list[dict[
         cv2.putText(preview, zone["name"], (x1, max(15, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
     st.image(cv2.cvtColor(preview, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
     return zones
+
+
+def _live_refresh_interval(live_speed: str) -> str:
+    return {"1x": "2s", "2x": "1s", "4x": "500ms"}.get(live_speed, "1s")
+
+
+def _ensure_live_session(
+    stream_source: str,
+    controls: dict[str, Any],
+    source_key: str,
+    normalized_zones: list[dict[str, Any]] | None = None,
+) -> bool:
+    existing_key = st.session_state.get("live_source_key")
+    live_state = st.session_state.get("live_state")
+    if live_state is not None and existing_key == source_key:
+        st.session_state["live_running"] = True
+        return True
+
+    if live_state is not None and existing_key != source_key:
+        try:
+            live_state["cap"].release()
+        except Exception:
+            pass
+
+    try:
+        live_zones = normalized_zones or st.session_state.get(f"zone_editor_{source_key}")
+        st.session_state["live_state"] = init_live_state(stream_source, ROOT_DIR, controls, live_zones)
+        st.session_state["live_source_key"] = source_key
+        st.session_state["live_running"] = True
+        st.session_state["live_paused"] = False
+        st.session_state["last_session"] = live_state_snapshot(st.session_state["live_state"])
+        return True
+    except Exception as exc:
+        st.error(f"Unable to open live stream: {exc}")
+        st.session_state["live_running"] = False
+        return False
+
+
+def _render_live_overview_fragment(controls: dict[str, Any], source_key: str) -> None:
+    refresh_every = _live_refresh_interval(controls["live_speed"])
+
+    @st.fragment(run_every=refresh_every)
+    def _render() -> None:
+        live_state = st.session_state.get("live_state")
+        if not st.session_state.get("live_running") or live_state is None:
+            st.info("Live overview is ready. Start analysis to begin auto-refreshing the screen.")
+            return
+
+        st.caption("Auto-refreshing live overview. Pause to inspect the latest frame or adjust zones.")
+        action_left, action_right, action_reinit = st.columns([1, 1, 2])
+        if action_left.button("Pause", key=f"{source_key}_pause"):
+            st.session_state["live_paused"] = True
+        if action_right.button("Resume", key=f"{source_key}_resume"):
+            st.session_state["live_paused"] = False
+        if action_reinit.button("Reinitialize live session", key=f"{source_key}_reinit"):
+            st.session_state.pop("live_state", None)
+            st.session_state["live_running"] = False
+            _ensure_live_session(
+                st.session_state.get("live_stream_source", ""),
+                controls,
+                source_key,
+                st.session_state.get(f"zone_editor_{source_key}"),
+            )
+
+        state = st.session_state.get("live_state")
+        if state is None:
+            st.warning("Live session is not available yet.")
+            return
+
+        if st.session_state.get("live_paused"):
+            st.info("Live analysis paused.")
+            last_frame = state.get("last_frame_bgr")
+            if controls["enable_zones"] and last_frame is not None:
+                edited = _zone_editor_from_frame(source_key, last_frame, state.get("zones"))
+                st.session_state[f"zone_editor_{source_key}"] = edited
+                state["zones"] = build_zones_from_normalized(
+                    edited,
+                    int(last_frame.shape[1]),
+                    int(last_frame.shape[0]),
+                )
+            snapshot = live_state_snapshot(state)
+            render_live_overview(snapshot, show_trends=controls["show_trends"])
+            return
+
+        payload = process_live_frame(state, controls)
+        if payload is None:
+            st.warning("Live feed yielded no frame yet. Waiting for the next update.")
+            return
+
+        frame_rgb = cv2.cvtColor(payload["frame_bgr"], cv2.COLOR_BGR2RGB)
+        st.image(frame_rgb, channels="RGB", use_container_width=True)
+        st.caption(
+            f"Live Frame {payload['frame_idx']} | People: {payload['people_count']} | "
+            f"Current Crowd Stress Risk: {payload['current_risk']:.2f} | "
+            f"Predicted: {payload['predicted_risk']:.2f} | "
+            f"Pred. Bottleneck: {payload.get('predicted_bottleneck_risk', 0.0):.2f}"
+        )
+        session = live_state_snapshot(state)
+        st.session_state["last_session"] = session
+        render_live_overview(session, show_trends=controls["show_trends"])
+
+    _render()
 
 
 def main() -> None:
@@ -272,52 +376,38 @@ def main() -> None:
             "Live stream URL or page URL",
             value="https://www.skylinewebcams.com/en/webcam/italia/lazio/roma/fontana-di-trevi.html",
         )
+        st.session_state["live_stream_source"] = stream_source
         live_key = f"live:{stream_source.strip()}"
-        st.session_state.setdefault("live_running", False)
-        st.session_state.setdefault("live_paused", True)
-
-        c1, c2, c3 = st.columns(3)
-        if c1.button("Start Live Analysis", type="primary"):
-            live_zones = st.session_state.get(f"zone_editor_{live_key}")
-            st.session_state["live_state"] = init_live_state(stream_source, ROOT_DIR, controls, live_zones)
-            st.session_state["live_running"] = True
+        start_requested = controls["auto_start_live"]
+        start_col, reset_col = st.columns(2)
+        if start_col.button("Start Live Overview", type="primary"):
+            start_requested = True
+        if reset_col.button("Reset Live Session"):
+            current_state = st.session_state.get("live_state")
+            if current_state is not None:
+                try:
+                    current_state["cap"].release()
+                except Exception:
+                    pass
+            st.session_state.pop("live_state", None)
+            st.session_state.pop("last_session", None)
+            st.session_state["live_running"] = False
             st.session_state["live_paused"] = False
-        if c2.button("Pause"):
-            st.session_state["live_paused"] = True
-        if c3.button("Resume"):
-            st.session_state["live_paused"] = False
 
-        st.caption("Pause stops frame ingest and all crowd analysis updates. Resume continues analysis.")
-        if st.session_state.get("live_running") and st.session_state.get("live_state") is not None:
-            state = st.session_state["live_state"]
-            frame_holder = st.empty()
-            if not st.session_state["live_paused"]:
-                payload = process_live_frame(state, controls)
-                if payload is not None:
-                    frame_rgb = cv2.cvtColor(payload["frame_bgr"], cv2.COLOR_BGR2RGB)
-                    frame_holder.image(frame_rgb, channels="RGB", use_container_width=True)
-                    st.caption(
-                        f"Live Frame {payload['frame_idx']} | People: {payload['people_count']} | "
-                        f"Current Crowd Stress Risk: {payload['current_risk']:.2f} | "
-                        f"Predicted: {payload['predicted_risk']:.2f} | "
-                        f"Pred. Bottleneck: {payload.get('predicted_bottleneck_risk', 0.0):.2f}"
-                    )
-                st.session_state["last_session"] = live_state_snapshot(state)
-                time.sleep(0.04 if live_speed == "1x" else 0.02 if live_speed == "2x" else 0.01)
-                st.rerun()
-            else:
-                st.info("Live analysis paused.")
-                last_frame = state.get("last_frame_bgr")
-                if controls["enable_zones"] and last_frame is not None:
-                    edited = _zone_editor_from_frame(live_key, last_frame)
-                    st.session_state[f"zone_editor_{live_key}"] = edited
-                    # Apply edited zones immediately on resume.
-                    state["zones"] = build_zones_from_normalized(
-                        edited,
-                        int(last_frame.shape[1]),
-                        int(last_frame.shape[0]),
-                    )
-        session = st.session_state.get("last_session")
+        live_active = (
+            st.session_state.get("live_running")
+            and st.session_state.get("live_state") is not None
+            and st.session_state.get("live_source_key") == live_key
+        )
+        if start_requested and not live_active:
+            live_active = _ensure_live_session(stream_source, controls, live_key)
+
+        if live_active:
+            _render_live_overview_fragment(controls, live_key)
+            return
+
+        st.info("Set the live source above and start the overview to begin auto-refreshing the screen.")
+        session = None
 
     if session is None:
         return
@@ -347,6 +437,42 @@ def main() -> None:
         mime="application/pdf",
     )
 
+<<<<<<< Updated upstream
+=======
+    st.markdown("---")
+    st.header("Agentic Control Center")
+    if st.button("Generate Live LLM Analysis", type="primary", use_container_width=True):
+        with st.spinner("AI is analyzing privacy-blurred footage and telemetry..."):
+             # In a real app we pass the actual anonymized frame here,
+             # for Streamlit MVP we pass a blank frame or the last processed path frame
+             import numpy as np
+             dummy_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+             
+             # Create the JSON telemetry payload from the session summary
+             telemetry = session["summary"]
+             telemetry["active_anomalies"] = session.get("anomalies", [])[-3:] # last 3 anomalies
+             
+             try:
+                 # Try to use live Gemini API
+                 llm = CrowdSafetyLLM()
+                 ai_payload = llm.analyze_scene(dummy_frame, telemetry)
+             except ValueError as e:
+                 # API key not set - use mock mode
+                 st.warning("⚠️ Gemini API key not configured. Using mock analysis mode.")
+                 llm = CrowdSafetyLLM(use_mock=True)
+                 ai_payload = llm.analyze_scene(dummy_frame, telemetry)
+             except Exception as e:
+                 st.error(f"❌ LLM Error: {str(e)}")
+                 ai_payload = {
+                     "reasoning": "Error initializing LLM",
+                     "description": str(e),
+                     "risk_level": "Unknown",
+                     "action": "Set GEMINI_API_KEY environment variable to enable live analysis"
+                 }
+             
+             render_ai_assistant(ai_payload)
+
+>>>>>>> Stashed changes
 
 if __name__ == "__main__":
     main()

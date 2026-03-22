@@ -7,3 +7,9 @@ plotly
 reportlab
 pytest
 streamlink
+google-generativeai
+openai
+sahi
+scipy
+scikit-learn
+Pillow

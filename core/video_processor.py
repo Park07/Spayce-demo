@@ -11,17 +11,41 @@ import streamlink
 
 from core.anomaly import detect_anomalies
 from core.detector import PersonDetector, draw_detections
-from core.heatmap import build_heatmap_overlay, overlay_heatmap
 from core.metrics import compute_avg_speed, compute_clustering_pressure, compute_direction_consistency, compute_people_density
 from core.recommendations import build_alerts, build_recommendations
 from core.risk import compute_crowd_stress_risk, predict_crowd_stress_risk
 from core.utils import ensure_dir
-from core.zones import build_default_zones, build_zones_from_normalized, compute_zone_metrics, draw_zones
+from core.zones import build_default_zones, build_zones_from_normalized, compute_zone_metrics, draw_zones, point_in_rect
 
 
 def _open_video_writer(path: Path, fps: float, frame_size: tuple[int, int]) -> cv2.VideoWriter:
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     return cv2.VideoWriter(str(path), fourcc, max(1.0, fps), frame_size)
+
+
+def _apply_person_risk_scores(
+    tracked_people: list[dict[str, Any]],
+    zone_metrics: list[dict[str, Any]],
+    zones: list[dict[str, Any]],
+    current_risk: float,
+    predicted_risk: float,
+) -> None:
+    zone_lookup = {zone["name"]: zone for zone in zones}
+    zone_metric_lookup = {metric["zone"]: metric for metric in zone_metrics}
+    for person in tracked_people:
+        centroid = person["centroid"]
+        risk_score = current_risk
+        for zone_name, zone in zone_lookup.items():
+            if point_in_rect(centroid, zone["rect"]):
+                zone_metric = zone_metric_lookup.get(zone_name)
+                if zone_metric is not None:
+                    risk_score = max(risk_score, float(zone_metric["local_risk"]))
+                    if zone_metric["zone_type"] == "bottleneck":
+                        risk_score = min(1.0, risk_score + 0.1)
+                    elif zone_metric["zone_type"] == "exit" and predicted_risk >= 0.6:
+                        risk_score = min(1.0, risk_score + 0.05)
+                break
+        person["risk_score"] = max(0.0, min(1.0, risk_score))
 
 
 def process_video_file(
@@ -83,12 +107,13 @@ def process_video_file(
             continue
 
         tracked_people = detector.track_people(frame, confidence=confidence)
+        active_people_count = detector.active_track_count()
         _update_track_history(track_history, tracked_people)
-        _update_tracking_quality(tracking_quality, tracked_people)
+        _update_tracking_quality(tracking_quality, tracked_people, active_people_count)
         direction_counts = _direction_distribution(tracked_people)
         entry_exit = _update_flow_counters(tracked_people, frame_width, frame_height, flow_state)
         centroids = [p["centroid"] for p in tracked_people]
-        people_count = len(tracked_people)
+        people_count = active_people_count
         density = compute_people_density(people_count, frame_area)
 
         avg_speed = compute_avg_speed(tracked_people)
@@ -131,10 +156,8 @@ def process_video_file(
         latest_recommendations = build_recommendations(latest_alerts, zone_metrics)
         latest_zone_metrics = zone_metrics
 
+        _apply_person_risk_scores(tracked_people, zone_metrics, zones, current_risk, predicted_risk)
         annotated = draw_detections(frame, tracked_people)
-        if show_heatmap and centroids:
-            heat = build_heatmap_overlay(frame.shape, centroids)
-            annotated = overlay_heatmap(annotated, heat)
         if zones:
             draw_zones(annotated, zones)
 
@@ -331,12 +354,13 @@ def process_live_frame(
     state["last_frame_bgr"] = frame.copy()
 
     tracked_people = state["detector"].track_people(frame, confidence=controls["confidence"])
+    active_people_count = state["detector"].active_track_count()
     _update_track_history(state["track_history"], tracked_people)
-    _update_tracking_quality(state["tracking_quality"], tracked_people)
+    _update_tracking_quality(state["tracking_quality"], tracked_people, active_people_count)
     direction_counts = _direction_distribution(tracked_people)
     entry_exit = _update_flow_counters(tracked_people, state["frame_width"], state["frame_height"], state["flow_state"])
     centroids = [p["centroid"] for p in tracked_people]
-    people_count = len(tracked_people)
+    people_count = active_people_count
     density = compute_people_density(people_count, state["frame_area"])
     avg_speed = compute_avg_speed(tracked_people)
     dir_consistency = compute_direction_consistency(tracked_people)
@@ -377,10 +401,8 @@ def process_live_frame(
     state["latest_recommendations"] = build_recommendations(state["latest_alerts"], zone_metrics)
     state["latest_zone_metrics"] = zone_metrics
 
+    _apply_person_risk_scores(tracked_people, zone_metrics, state["zones"], current_risk, predicted_risk)
     annotated = draw_detections(frame, tracked_people)
-    if controls["show_heatmap"] and centroids:
-        heat = build_heatmap_overlay(frame.shape, centroids)
-        annotated = overlay_heatmap(annotated, heat)
     if state["zones"]:
         draw_zones(annotated, state["zones"])
     cv2.putText(
@@ -545,7 +567,11 @@ def _init_tracking_quality() -> dict[str, Any]:
     }
 
 
-def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: list[dict[str, Any]]) -> None:
+def _update_tracking_quality(
+    tracking_quality: dict[str, Any],
+    tracked_people: list[dict[str, Any]],
+    active_count: int | None = None,
+) -> None:
     current_points = {int(p["track_id"]): p["centroid"] for p in tracked_people if int(p.get("track_id", -1)) >= 0}
     current_ids = set(current_points.keys())
     prev_ids = tracking_quality["prev_ids"]
@@ -561,12 +587,10 @@ def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: l
             tracking_quality["lost_tracks"] += 1
 
     # Reset streak for IDs that reappeared
-    recovered_now = set()
     for tid in current_ids:
         if tid in missing_streaks and missing_streaks[tid] > 0:
             if missing_streaks[tid] >= 3 and tid in tracking_quality["seen_ids"]:
                 tracking_quality["recovered_tracks"] += 1
-                recovered_now.add(tid)
             missing_streaks[tid] = 0
 
     # Clean up old streaks
@@ -591,7 +615,7 @@ def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: l
     tracking_quality["seen_ids"].update(current_ids)
     tracking_quality["prev_ids"] = current_ids
     tracking_quality["prev_points"] = current_points
-    tracking_quality["active_tracks"] = len(current_ids)
+    tracking_quality["active_tracks"] = active_count if active_count is not None else len(current_ids)
 
 
 def _tracking_stability(tracking_quality: dict[str, Any]) -> float:

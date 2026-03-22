@@ -26,6 +26,19 @@ def render_metrics_header(summary: dict[str, Any]) -> None:
     q5.metric("Tracking Stability", f"{summary.get('tracking_stability', 1.0):.2f}")
 
 
+def render_live_overview(session: dict[str, Any], show_trends: bool = True) -> None:
+    render_metrics_header(session["summary"])
+    col_left, col_right = st.columns([1.2, 1.0], gap="large")
+    with col_left:
+        render_alerts(session["alerts"])
+        render_recommendations(session["recommendations"])
+    with col_right:
+        render_zone_table(session["zone_snapshots"])
+
+    if show_trends:
+        render_trend_charts(session["timeline_df"])
+
+
 def render_alerts(alerts: list[str]) -> None:
     st.subheader("Alerts")
     if not alerts:

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACEY_OS | Crowd Intelligence Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="site-shell">
+        <nav class="top-nav">
+            <a class="brand" href="#hero">SPACEY_OS</a>
+            <div class="nav-links">
+                <a href="#problem">Sensors</a>
+                <a href="#pipeline">Algorithms</a>
+                <a href="#dashboard">Network</a>
+            </div>
+            <div class="nav-status">
+                <span class="nav-chip">SYSTEM_STATUS: ACTIVE</span>
+                <button class="nav-icon" type="button" aria-label="Open command terminal">[]</button>
+                <button class="nav-icon" type="button" aria-label="Open settings">::</button>
+            </div>
+        </nav>
+
+        <main>
+            <section class="hero-section grid-lines" id="hero">
+                <div class="hero-copy">
+                    <div class="risk-banner">
+                        <span class="signal-dot"></span>
+                        <span class="mono-label" id="hero-risk">RISK SCORE: 0.73 / ELEVATED</span>
+                    </div>
+                    <h1>Crowd intelligence.<br>Before crisis strikes.</h1>
+                    <p>
+                        AI-powered crowd safety platform detecting dangerous pressure points, blocked flows,
+                        and stress anomalies before they escalate into incidents.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="primary-action" data-scroll-target="#dashboard" type="button">See Live Dashboard</button>
+                        <button class="secondary-action" data-scroll-target="#pipeline" type="button">Technical Specs</button>
+                    </div>
+                </div>
+
+                <div class="hero-rail">
+                    <article class="feed-panel tactical-panel">
+                        <div class="panel-head">
+                            <span class="mono-label">Sector_04_Feed</span>
+                            <span class="panel-live">Live</span>
+                        </div>
+                        <div class="synthetic-feed">
+                            <div class="feed-grid"></div>
+                            <div class="feed-scan"></div>
+                            <div class="feed-zone zone-primary"></div>
+                            <div class="feed-zone zone-secondary"></div>
+                            <div class="feed-zone zone-critical"></div>
+                            <div class="feed-tag">0.73 Flow_Gap</div>
+                        </div>
+                    </article>
+
+                    <article class="stress-card tactical-panel">
+                        <div class="stress-header">
+                            <div>
+                                <h2>Crowd Stress Detector</h2>
+                                <p class="mono-label">Explainable AI logic node</p>
+                            </div>
+                            <div class="stress-score">
+                                <strong id="stress-score">8.4</strong>
+                                <span class="mono-label">Critical Index</span>
+                            </div>
+                        </div>
+                        <div class="stress-metrics">
+                            <div class="stress-row">
+                                <div class="stress-topline">
+                                    <span class="mono-label">Kinetic energy pulse</span>
+                                    <span id="kinetic-score">0.82</span>
+                                </div>
+                                <div class="stress-bar"><span id="kinetic-bar" style="width: 82%;"></span></div>
+                                <p>Sudden vector changes detected in sector 4-12 suggest rapid movement patterns.</p>
+                            </div>
+                            <div class="stress-row">
+                                <div class="stress-topline">
+                                    <span class="mono-label">Vocal frequency strain</span>
+                                    <span id="vocal-score">0.91</span>
+                                </div>
+                                <div class="stress-bar"><span class="amber" id="vocal-bar" style="width: 91%;"></span></div>
+                                <p>Audio sensors identifying decibel spikes consistent with high-stress vocalization.</p>
+                            </div>
+                            <div class="stress-row">
+                                <div class="stress-topline">
+                                    <span class="mono-label">Density overload</span>
+                                    <span id="density-score">0.65</span>
+                                </div>
+                                <div class="stress-bar"><span id="density-bar" style="width: 65%;"></span></div>
+                                <p>PQL/m2 exceeding safety thresholds by 12% in bottleneck zones.</p>
+                            </div>
+                        </div>
+                        <button class="intervention-button" type="button">Deploy Intervention</button>
+                    </article>
+                </div>
+            </section>
+
+            <section class="problem-section" id="problem">
+                <div class="section-intro">
+                    <span class="mono-label">Critical_Vulnerability</span>
+                    <h2>Warning signals exist.<br>Most teams miss them.</h2>
+                </div>
+                <div class="problem-grid">
+                    <article class="problem-card">
+                        <div class="problem-icon">01</div>
+                        <h3>Rising density</h3>
+                        <p>Undetected compression waves moving through stationary crowds can reach critical mass in seconds.</p>
+                        <div class="metric-track"><span style="width: 82%;"></span></div>
+                    </article>
+                    <article class="problem-card">
+                        <div class="problem-icon">02</div>
+                        <h3>Flow conflicts</h3>
+                        <p>Bi-directional counter-flows in narrow corridors create turbulence that legacy surveillance misses.</p>
+                        <div class="metric-track"><span style="width: 45%;"></span></div>
+                    </article>
+                    <article class="problem-card">
+                        <div class="problem-icon">03</div>
+                        <h3>Bottleneck pressure</h3>
+                        <p>Real-time detection of stall points at exits enables immediate redirection before impact.</p>
+                        <div class="metric-track"><span style="width: 91%;"></span></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="pipeline-section" id="pipeline">
+                <div class="section-intro section-intro-centered">
+                    <span class="mono-label">Operational_Pipeline</span>
+                    <h2>Kinetic intelligence workflow</h2>
+                </div>
+                <div class="pipeline">
+                    <div class="pipeline-line"></div>
+                    <article class="pipeline-step">
+                        <div class="step-box">01</div>
+                        <h3>Ingest CCTV</h3>
+                        <p>0ms latency</p>
+                    </article>
+                    <article class="pipeline-step">
+                        <div class="step-box">02</div>
+                        <h3>Anonymise</h3>
+                        <p>YOLOv8 core</p>
+                    </article>
+                    <article class="pipeline-step">
+                        <div class="step-box">03</div>
+                        <h3>Analyse density</h3>
+                        <p>Tesselated mapping</p>
+                    </article>
+                    <article class="pipeline-step pipeline-step-alert">
+                        <div class="step-box">04</div>
+                        <h3>LLM risk score</h3>
+                        <p>Predictive engine</p>
+                    </article>
+                    <article class="pipeline-step pipeline-step-solid">
+                        <div class="step-box">05</div>
+                        <h3>Operator alert</h3>
+                        <p>Tactical dispatch</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="dashboard-section" id="dashboard">
+                <div class="dashboard-preview">
+                    <div class="dashboard-frame">
+                        <div class="frame-toolbar">
+                            <div class="toolbar-group">
+                                <span class="mono-label accent">Node_Alpha_01</span>
+                                <span class="mono-label">FPS: 60.0</span>
+                            </div>
+                            <span class="mono-label warning-text" id="toolbar-alert">Alert: Stopped_Flow_Zone_B</span>
+                        </div>
+                        <div class="frame-body">
+                            <div class="frame-grid"></div>
+                            <div class="frame-overlay overlay-a"></div>
+                            <div class="frame-overlay overlay-b"></div>
+                            <div class="frame-overlay overlay-c"></div>
+                            <div class="frame-reticle"></div>
+                            <div class="frame-stack">
+                                <div class="info-card">
+                                    <span class="mono-label">Density index</span>
+                                    <strong id="frame-density">0.73</strong>
+                                </div>
+                                <div class="info-card info-card-warning">
+                                    <span class="mono-label">Status</span>
+                                    <strong id="frame-status">Risk Critical</strong>
+                                </div>
+                            </div>
+                            <div class="frame-callout">
+                                <span class="callout-line"></span>
+                                <span class="callout-label" id="frame-callout">Stopped flow detected / Exit B</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="dashboard-side">
+                    <article class="terminal-panel tactical-panel">
+                        <div class="panel-head">
+                            <span class="mono-label warning-text">AI_Observation_Log</span>
+                            <span class="blinker"></span>
+                        </div>
+                        <div class="terminal-lines" id="terminal-lines">
+                            <p><span class="accent">[14:02:11]</span> SYSTEM_SCAN: Completed Sector 7.</p>
+                            <p><span class="accent">[14:02:15]</span> RISK_DETECTED: HIGH (0.81) in Zone C.</p>
+                            <p class="warning-text">#ANALYSIS: Density spike at stairwell bottleneck. Pattern matches pre-incident cluster 004-A.</p>
+                            <p><span class="callout-token">#ACTION</span> Deploy staff to Exit 3. Trigger redirection audio 02.</p>
+                        </div>
+                    </article>
+
+                    <article class="audit-panel tactical-panel">
+                        <div class="panel-head">
+                            <span class="mono-label">Decision audit log</span>
+                            <span class="panel-live">Auto</span>
+                        </div>
+                        <div class="audit-list" id="audit-list">
+                            <article class="audit-entry">
+                                <div class="audit-meta">
+                                    <time>14:22:05</time>
+                                    <span class="audit-tag audit-tag-blue">Auto detect</span>
+                                </div>
+                                <p>Anomaly identified: group behavior sync in Quadrant 4.</p>
+                            </article>
+                            <article class="audit-entry">
+                                <div class="audit-meta">
+                                    <time>14:21:48</time>
+                                    <span class="audit-tag audit-tag-amber">Risk upgrade</span>
+                                </div>
+                                <p>Stress index elevated to 8.4 due to biometric sensor relay.</p>
+                            </article>
+                            <article class="audit-entry">
+                                <div class="audit-meta">
+                                    <time>14:20:12</time>
+                                    <span class="audit-tag">System idle</span>
+                                </div>
+                                <p>Data stream synchronization complete. All nodes active.</p>
+                            </article>
+                        </div>
+                    </article>
+                </aside>
+            </section>
+
+            <section class="feature-section" id="features">
+                <div class="feature-grid">
+                    <article class="feature-card feature-card-large">
+                        <span class="feature-kicker mono-label">Explainable score</span>
+                        <h3>0.0 to 1.0 explainable risk model</h3>
+                        <p>Not just an alarm. Spacey provides the exact mathematical reasoning behind every escalation.</p>
+                    </article>
+                    <article class="feature-card">
+                        <span class="feature-kicker mono-label">Overlay stack</span>
+                        <h3>Heatmap overlays</h3>
+                        <p>Real-time occupancy gradients mapped directly onto spatial floorplans.</p>
+                    </article>
+                    <article class="feature-card">
+                        <span class="feature-kicker mono-label">Pattern watch</span>
+                        <h3>Anomaly detection</h3>
+                        <p>Recognition for sudden crowd panic, collapse, and aggressive pressure changes.</p>
+                    </article>
+                    <article class="feature-card">
+                        <span class="feature-kicker mono-label">Operator console</span>
+                        <h3>Operator Q&amp;A</h3>
+                        <p>Natural-language access to telemetry, risk summaries, and intervention suggestions.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="cta-section grid-lines">
+                <div class="cta-inner">
+                    <h2>See Spacey in action</h2>
+                    <button class="primary-action large-action" data-scroll-target="#hero" type="button">Request System Demo</button>
+                    <div class="cta-notes">
+                        <p class="mono-label">Engineered for extreme environments</p>
+                        <p class="mono-label">Built at Space_Kinetic_Hackathon / 2026</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div>(c)2026_SPACEY_KINETIC_MONOLITH_OS</div>
+            <div class="footer-links">
+                <a href="#hero">Github_Repo</a>
+                <a href="#features">Hackathon_Credits</a>
+                <a href="#pipeline">API_Docs</a>
+                <a href="#problem">Legal_Terminal</a>
+            </div>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,965 @@
+:root {
+    --background: #131315;
+    --surface-lowest: #0e0e10;
+    --surface-low: #1c1b1d;
+    --surface: #201f21;
+    --surface-high: #2a2a2c;
+    --surface-highest: #353437;
+    --text: #e5e1e4;
+    --text-muted: #bdc8d1;
+    --outline: #87929a;
+    --outline-variant: #3e484f;
+    --primary: #8ed5ff;
+    --primary-strong: #38bdf8;
+    --secondary: #ffb95f;
+    --secondary-strong: #ee9800;
+    --shadow: 0 18px 40px rgba(0, 0, 0, 0.36);
+    --panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top right, rgba(255, 185, 95, 0.08), transparent 24%),
+        radial-gradient(circle at 12% 8%, rgba(142, 213, 255, 0.08), transparent 24%),
+        linear-gradient(180deg, #171719 0%, #131315 50%, #101012 100%);
+    color: var(--text);
+    font-family: "Inter", sans-serif;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(rgba(142, 213, 255, 0.025) 1px, transparent 1px);
+    background-size: 100% 5px;
+    opacity: 0.22;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+}
+
+.site-shell {
+    position: relative;
+    z-index: 1;
+}
+
+.grid-lines {
+    position: relative;
+}
+
+.grid-lines::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(142, 213, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(142, 213, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+.top-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    min-height: 3.75rem;
+    padding: 0 1.5rem;
+    background: rgba(19, 19, 21, 0.92);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 1px 0 rgba(62, 72, 79, 0.2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.72rem;
+}
+
+.brand {
+    color: var(--primary);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+}
+
+.nav-links,
+.nav-status,
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-links a,
+.footer-links a {
+    color: var(--outline);
+    transition: color 160ms ease, background-color 160ms ease;
+}
+
+.nav-links a:hover,
+.footer-links a:hover {
+    color: var(--secondary);
+}
+
+.nav-chip,
+.mono-label,
+.panel-live,
+.audit-meta,
+.frame-toolbar,
+.stress-topline {
+    font-family: "IBM Plex Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.nav-chip {
+    color: var(--primary);
+    font-size: 0.65rem;
+}
+
+.nav-icon {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    background: var(--surface-high);
+    color: var(--outline);
+}
+
+main > section,
+.site-footer {
+    padding-inline: 1.5rem;
+}
+
+.hero-section,
+.problem-section,
+.pipeline-section,
+.dashboard-section,
+.feature-section,
+.cta-section {
+    max-width: 88rem;
+    margin: 0 auto;
+}
+
+.hero-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 2rem;
+    align-items: center;
+    min-height: calc(100vh - 3.75rem);
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+}
+
+.hero-copy,
+.hero-rail,
+.dashboard-side {
+    position: relative;
+    z-index: 1;
+}
+
+.risk-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    padding: 0.75rem 1rem;
+    background: rgba(238, 152, 0, 0.14);
+    color: var(--secondary);
+    box-shadow: inset 0 0 0 1px rgba(255, 185, 95, 0.24);
+}
+
+.signal-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: var(--secondary);
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(255, 185, 95, 0.4);
+    animation: ping 2s infinite;
+}
+
+.hero-copy h1,
+.section-intro h2,
+.cta-inner h2,
+.stress-header h2 {
+    font-family: "Space Grotesk", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: -0.05em;
+}
+
+.hero-copy h1 {
+    font-size: clamp(3.25rem, 8vw, 6.25rem);
+    line-height: 0.9;
+    margin-bottom: 1.5rem;
+}
+
+.hero-copy p {
+    max-width: 40rem;
+    color: var(--text-muted);
+    font-size: clamp(1.05rem, 2vw, 1.45rem);
+    line-height: 1.7;
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.primary-action,
+.secondary-action,
+.intervention-button {
+    min-height: 3.5rem;
+    padding: 0 1.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+}
+
+.primary-action {
+    background: var(--secondary-strong);
+    color: #2a1700;
+    box-shadow: 0 0 0 1px rgba(255, 185, 95, 0.15);
+}
+
+.secondary-action {
+    background: transparent;
+    color: var(--outline);
+    box-shadow: inset 0 0 0 1px rgba(135, 146, 154, 0.28);
+}
+
+.primary-action:hover,
+.intervention-button:hover {
+    filter: brightness(1.08);
+}
+
+.secondary-action:hover {
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px rgba(229, 225, 228, 0.3);
+}
+
+.hero-rail {
+    display: grid;
+    gap: 1rem;
+}
+
+.tactical-panel,
+.problem-card,
+.pipeline-step,
+.feature-card,
+.dashboard-frame {
+    background: linear-gradient(180deg, rgba(42, 42, 44, 0.98), rgba(24, 24, 26, 0.98));
+    box-shadow: var(--shadow), var(--panel-shadow);
+}
+
+.feed-panel,
+.stress-card,
+.terminal-panel,
+.audit-panel,
+.dashboard-frame {
+    overflow: hidden;
+}
+
+.feed-panel,
+.stress-card,
+.terminal-panel,
+.audit-panel,
+.problem-card,
+.feature-card,
+.dashboard-frame {
+    padding: 1.25rem;
+}
+
+.panel-head,
+.stress-header,
+.audit-meta,
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.panel-head {
+    margin-bottom: 0.9rem;
+}
+
+.panel-live,
+.accent {
+    color: var(--primary);
+}
+
+.warning-text {
+    color: var(--secondary);
+}
+
+.synthetic-feed {
+    position: relative;
+    height: 16rem;
+    background: linear-gradient(180deg, rgba(14, 14, 16, 0.96), rgba(20, 20, 22, 0.98));
+    box-shadow: inset 0 0 0 1px rgba(62, 72, 79, 0.2);
+}
+
+.feed-grid,
+.frame-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(142, 213, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(142, 213, 255, 0.08) 1px, transparent 1px);
+    background-size: 2.5rem 2.5rem;
+    opacity: 0.3;
+}
+
+.feed-scan {
+    position: absolute;
+    inset-inline: 0;
+    height: 2px;
+    background: rgba(142, 213, 255, 0.55);
+    animation: scan 6s linear infinite;
+}
+
+.feed-zone,
+.frame-overlay {
+    position: absolute;
+    filter: blur(14px);
+}
+
+.zone-primary {
+    inset: 18% auto auto 18%;
+    width: 8rem;
+    height: 5rem;
+    background: rgba(142, 213, 255, 0.18);
+}
+
+.zone-secondary {
+    inset: 42% auto auto 56%;
+    width: 8.5rem;
+    height: 6rem;
+    background: rgba(255, 185, 95, 0.18);
+}
+
+.zone-critical {
+    inset: 60% auto auto 36%;
+    width: 10rem;
+    height: 6.8rem;
+    background: rgba(238, 152, 0, 0.24);
+    animation: pulseZone 2.4s ease-in-out infinite;
+}
+
+.feed-tag {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    padding: 0.35rem 0.55rem;
+    background: rgba(238, 152, 0, 0.1);
+    color: var(--secondary);
+    box-shadow: inset 0 0 0 1px rgba(255, 185, 95, 0.35);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.stress-header {
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.stress-header h2 {
+    font-size: 1.45rem;
+    margin-bottom: 0.3rem;
+}
+
+.stress-score {
+    display: grid;
+    justify-items: end;
+    gap: 0.3rem;
+}
+
+.stress-score strong {
+    color: var(--secondary);
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 2.5rem;
+    line-height: 0.9;
+}
+
+.stress-score span {
+    color: var(--outline);
+    font-size: 0.62rem;
+}
+
+.stress-metrics {
+    display: grid;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.stress-row {
+    padding: 0.95rem;
+    background: rgba(14, 14, 16, 0.95);
+}
+
+.stress-topline {
+    font-size: 0.68rem;
+    color: var(--outline);
+    margin-bottom: 0.55rem;
+}
+
+.stress-topline span:last-child {
+    color: var(--primary);
+}
+
+.stress-bar {
+    height: 0.22rem;
+    margin-bottom: 0.75rem;
+    background: rgba(62, 72, 79, 0.4);
+}
+
+.stress-bar span {
+    display: block;
+    height: 100%;
+    background: var(--primary);
+}
+
+.stress-bar span.amber {
+    background: var(--secondary);
+}
+
+.stress-row p {
+    color: #586779;
+    font-style: italic;
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+.intervention-button {
+    width: 100%;
+    background: #245f7b;
+    color: #d5edf9;
+}
+
+.problem-section,
+.pipeline-section,
+.dashboard-section,
+.feature-section,
+.cta-section {
+    padding-top: 6rem;
+    padding-bottom: 6rem;
+}
+
+.problem-section {
+    background: rgba(14, 14, 16, 0.7);
+}
+
+.section-intro {
+    margin-bottom: 3rem;
+}
+
+.section-intro-centered {
+    text-align: center;
+}
+
+.section-intro .mono-label {
+    display: block;
+    color: var(--primary);
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+}
+
+.section-intro h2,
+.cta-inner h2 {
+    font-size: clamp(2.3rem, 5vw, 4.2rem);
+    line-height: 1;
+}
+
+.problem-grid,
+.feature-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.problem-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.problem-card h3,
+.pipeline-step h3,
+.feature-card h3 {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.35rem;
+    text-transform: uppercase;
+    margin-bottom: 0.9rem;
+}
+
+.problem-card p,
+.feature-card p,
+.pipeline-step p,
+.audit-entry p,
+.terminal-lines p {
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.problem-icon,
+.step-box {
+    display: grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid rgba(142, 213, 255, 0.3);
+    color: var(--primary);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+}
+
+.metric-track,
+.metric-track span {
+    height: 0.22rem;
+}
+
+.metric-track {
+    margin-top: 1.5rem;
+    background: rgba(62, 72, 79, 0.4);
+}
+
+.metric-track span {
+    display: block;
+    background: var(--secondary);
+}
+
+.pipeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.pipeline-line {
+    position: absolute;
+    top: 2rem;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(142, 213, 255, 0.18);
+}
+
+.pipeline-step {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.pipeline-step .step-box {
+    margin-inline: auto;
+    background: var(--surface-high);
+}
+
+.pipeline-step-alert .step-box {
+    border-color: rgba(255, 185, 95, 0.7);
+    box-shadow: 0 0 20px rgba(255, 185, 95, 0.14);
+    color: var(--secondary);
+}
+
+.pipeline-step-solid .step-box {
+    border-color: transparent;
+    background: var(--secondary-strong);
+    color: #2a1700;
+}
+
+.pipeline-step p {
+    font-family: "IBM Plex Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.66rem;
+}
+
+.dashboard-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.dashboard-frame {
+    padding: 0.6rem;
+    background: #0e0e10;
+    box-shadow: inset 0 0 0 4px var(--surface-highest), var(--shadow);
+}
+
+.frame-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--surface-high);
+    color: var(--outline);
+    font-size: 0.66rem;
+}
+
+.frame-body {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 66% 34%, rgba(255, 185, 95, 0.08), transparent 18%),
+        linear-gradient(180deg, #060708 0%, #0d0f12 100%);
+}
+
+.overlay-a {
+    inset: 22% auto auto 18%;
+    width: 12rem;
+    height: 10rem;
+    background: rgba(142, 213, 255, 0.08);
+}
+
+.overlay-b {
+    inset: 48% auto auto 55%;
+    width: 10rem;
+    height: 8rem;
+    background: rgba(255, 185, 95, 0.16);
+}
+
+.overlay-c {
+    inset: 60% auto auto 30%;
+    width: 14rem;
+    height: 9rem;
+    background: rgba(238, 152, 0, 0.18);
+}
+
+.frame-reticle {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    width: 10rem;
+    height: 10rem;
+    border-left: 1px solid rgba(142, 213, 255, 0.4);
+    border-top: 1px solid rgba(142, 213, 255, 0.4);
+}
+
+.frame-stack {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.info-card {
+    min-width: 10rem;
+    padding: 0.9rem;
+    background: rgba(42, 42, 44, 0.78);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 0 0 1px rgba(142, 213, 255, 0.12);
+}
+
+.info-card strong {
+    display: block;
+    margin-top: 0.35rem;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.6rem;
+}
+
+.info-card-warning {
+    box-shadow: inset 0 0 0 1px rgba(255, 185, 95, 0.35);
+}
+
+.info-card-warning strong {
+    color: var(--secondary);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.frame-callout {
+    position: absolute;
+    bottom: 24%;
+    left: 34%;
+    display: flex;
+    align-items: center;
+}
+
+.callout-line {
+    width: 4rem;
+    height: 1px;
+    background: var(--primary);
+}
+
+.callout-label,
+.callout-token {
+    display: inline-block;
+    padding: 0.32rem 0.6rem;
+    background: var(--primary-strong);
+    color: #00354a;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.dashboard-side {
+    display: grid;
+    gap: 1rem;
+}
+
+.terminal-panel {
+    background: #050607;
+}
+
+.terminal-lines {
+    display: grid;
+    gap: 0.75rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+}
+
+.blinker {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--secondary);
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+}
+
+.audit-list {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.audit-entry {
+    padding: 0.9rem;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.audit-entry.is-new {
+    background: rgba(142, 213, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(142, 213, 255, 0.15);
+}
+
+.audit-meta {
+    font-size: 0.62rem;
+    color: var(--outline);
+    margin-bottom: 0.5rem;
+}
+
+.audit-tag {
+    color: var(--outline);
+}
+
+.audit-tag-blue {
+    color: var(--primary);
+}
+
+.audit-tag-amber {
+    color: var(--secondary);
+}
+
+.feature-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(14rem, auto);
+}
+
+.feature-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 14rem;
+}
+
+.feature-card-large {
+    grid-column: span 2;
+    grid-row: span 2;
+    min-height: 100%;
+    background:
+        radial-gradient(circle at top right, rgba(142, 213, 255, 0.08), transparent 28%),
+        linear-gradient(180deg, rgba(28, 27, 29, 0.98), rgba(24, 24, 26, 0.98));
+}
+
+.feature-kicker {
+    display: block;
+    margin-bottom: 1rem;
+    color: var(--primary);
+    font-size: 0.72rem;
+}
+
+.feature-card h3 {
+    font-size: 1.85rem;
+}
+
+.cta-section {
+    text-align: center;
+    background: rgba(14, 14, 16, 0.72);
+    border-top: 1px solid rgba(62, 72, 79, 0.2);
+}
+
+.cta-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 48rem;
+    margin: 0 auto;
+}
+
+.large-action {
+    margin-top: 2rem;
+    min-height: 4.25rem;
+    padding-inline: 3rem;
+    font-size: 1rem;
+    box-shadow: 0 0 40px rgba(238, 152, 0, 0.22);
+}
+
+.cta-notes {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 3rem;
+    color: var(--outline);
+    font-size: 0.64rem;
+}
+
+.site-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    max-width: 88rem;
+    margin: 0 auto;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    border-top: 1px solid rgba(53, 52, 55, 0.2);
+    background: rgba(14, 14, 16, 0.9);
+    color: var(--outline);
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+@keyframes ping {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 185, 95, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 0.65rem rgba(255, 185, 95, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 185, 95, 0);
+    }
+}
+
+@keyframes scan {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(15.5rem);
+    }
+}
+
+@keyframes pulseZone {
+    0%, 100% {
+        opacity: 0.55;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.85;
+        transform: scale(1.08);
+    }
+}
+
+@keyframes blink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@media (max-width: 1100px) {
+    .hero-section,
+    .dashboard-section,
+    .problem-grid,
+    .feature-grid,
+    .pipeline {
+        grid-template-columns: 1fr;
+    }
+
+    .pipeline-line {
+        display: none;
+    }
+
+    .feature-card-large {
+        grid-column: auto;
+        grid-row: auto;
+    }
+}
+
+@media (max-width: 820px) {
+    .top-nav,
+    .nav-links,
+    .nav-status,
+    .site-footer,
+    .footer-links,
+    .frame-toolbar,
+    .stress-header,
+    .audit-meta {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .hero-section,
+    .problem-section,
+    .pipeline-section,
+    .dashboard-section,
+    .feature-section,
+    .cta-section,
+    .site-footer {
+        padding-inline: 1rem;
+    }
+
+    .frame-stack,
+    .frame-callout {
+        position: static;
+        margin: 1rem;
+    }
+
+    .frame-body {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+}
