@@ -85,7 +85,6 @@ def process_video_file(
     tracking_quality = _init_tracking_quality()
 
     frame_idx = 0
-    sahi_count = 0
 
     while True:
         ok, frame = cap.read()
@@ -96,15 +95,17 @@ def process_video_file(
             writer.write(frame)
             continue
 
-        tracked_people = detector.track_people(frame, confidence=confidence)
-        if frame_idx % 5 == 0 or frame_idx == 1:
-            sahi_count = len(detector.detect_people(frame, confidence=confidence))
+        # --- MERGED DETECTION: tracker + SAHI gap-fill (cached every 3 frames) ---
+        tracked_people = detector.track_and_detect(
+            frame, confidence=confidence, frame_idx=frame_idx, sahi_interval=3
+        )
+
         _update_track_history(track_history, tracked_people)
         _update_tracking_quality(tracking_quality, tracked_people)
         direction_counts = _direction_distribution(tracked_people)
         entry_exit = _update_flow_counters(tracked_people, frame_width, frame_height, flow_state)
         centroids = [p["centroid"] for p in tracked_people]
-        people_count = max(len(tracked_people), sahi_count)
+        people_count = len(tracked_people)
         density = compute_people_density(people_count, frame_area)
 
         avg_speed = compute_avg_speed(tracked_people)
@@ -406,9 +407,15 @@ def process_live_frame(
     state["frame_idx"] += 1
     state["last_frame_bgr"] = frame.copy()
 
-    tracked_people = state["detector"].track_people(frame, confidence=controls["confidence"])
-    sahi_detections = state["detector"].detect_people(frame, confidence=controls["confidence"])
-    people_count = max(len(tracked_people), len(sahi_detections))
+    # --- MERGED DETECTION: tracker + SAHI gap-fill (cached every 3 frames) ---
+    tracked_people = state["detector"].track_and_detect(
+        frame,
+        confidence=controls["confidence"],
+        frame_idx=state["frame_idx"],
+        sahi_interval=3,
+    )
+    people_count = len(tracked_people)
+
     _update_track_history(state["track_history"], tracked_people)
     _update_tracking_quality(state["tracking_quality"], tracked_people)
     direction_counts = _direction_distribution(tracked_people)
@@ -619,7 +626,9 @@ def _update_track_history(track_history: dict[int, list[tuple[int, int]]], track
     for person in tracked_people:
         tid = int(person.get("track_id", -1))
         if tid < 0:
-            person["trajectory"] = [person["centroid"]]
+            # SAHI-only detection — no persistent track, use single-frame trajectory
+            if "trajectory" not in person:
+                person["trajectory"] = [person["centroid"]]
             continue
         history = track_history.setdefault(tid, [])
         history.append(person["centroid"])
@@ -674,6 +683,7 @@ def _init_tracking_quality() -> dict[str, Any]:
 
 
 def _update_tracking_quality(tracking_quality: dict[str, Any], tracked_people: list[dict[str, Any]]) -> None:
+    # Only count real tracked IDs (>= 0), ignore SAHI fills (negative IDs)
     current_points = {int(p["track_id"]): p["centroid"] for p in tracked_people if int(p.get("track_id", -1)) >= 0}
     current_ids = set(current_points.keys())
     prev_ids = tracking_quality["prev_ids"]
@@ -739,7 +749,7 @@ def _update_flow_counters(
     for person in tracked_people:
         tid = int(person.get("track_id", -1))
         if tid < 0:
-            continue
+            continue  # Skip SAHI fills — no stable ID for flow counting
         trajectory = person.get("trajectory", [])
         if len(trajectory) < 2:
             continue

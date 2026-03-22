@@ -4,7 +4,8 @@ APP_TITLE = "Crowd Stress Detector"
 VIDEO_EXTENSIONS = ["mp4", "mov", "avi", "mkv"]
 
 PERSON_CLASS_ID = 0
-YOLO_MODEL_NAME = "yolov8x.pt"
+YOLO_MODEL_NAME = "face_yolov8.pt"
+PERSON_CLASS_ID = 0
 TRACKER_CONFIG = "bytetrack.yaml"
 TRACK_MAX_DETECTIONS = 300
 
