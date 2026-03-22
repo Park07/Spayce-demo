@@ -85,6 +85,8 @@ def process_video_file(
     tracking_quality = _init_tracking_quality()
 
     frame_idx = 0
+    sahi_count = 0
+
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -95,12 +97,14 @@ def process_video_file(
             continue
 
         tracked_people = detector.track_people(frame, confidence=confidence)
+        if frame_idx % 5 == 0 or frame_idx == 1:
+            sahi_count = len(detector.detect_people(frame, confidence=confidence))
         _update_track_history(track_history, tracked_people)
         _update_tracking_quality(tracking_quality, tracked_people)
         direction_counts = _direction_distribution(tracked_people)
         entry_exit = _update_flow_counters(tracked_people, frame_width, frame_height, flow_state)
         centroids = [p["centroid"] for p in tracked_people]
-        people_count = len(tracked_people)
+        people_count = max(len(tracked_people), sahi_count)
         density = compute_people_density(people_count, frame_area)
 
         avg_speed = compute_avg_speed(tracked_people)
