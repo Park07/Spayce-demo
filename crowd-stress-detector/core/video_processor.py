@@ -414,7 +414,6 @@ def process_live_frame(
     direction_counts = _direction_distribution(tracked_people)
     entry_exit = _update_flow_counters(tracked_people, state["frame_width"], state["frame_height"], state["flow_state"])
     centroids = [p["centroid"] for p in tracked_people]
-    people_count = len(tracked_people)
     density = compute_people_density(people_count, state["frame_area"])
     avg_speed = compute_avg_speed(tracked_people)
     dir_consistency = compute_direction_consistency(tracked_people)
