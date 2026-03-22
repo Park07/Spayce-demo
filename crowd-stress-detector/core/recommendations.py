@@ -60,3 +60,38 @@ def build_recommendations(alerts: list[str], zone_metrics: list[dict[str, Any]])
         if item not in ordered:
             ordered.append(item)
     return ordered
+
+
+def build_operator_actions(zone_metrics: list[dict], zone_predictions: dict, max_capacity: int = 10) -> list[str]:
+    """Generate specific operator actions based on zone status and predictions.
+    These are the execution layer - telling operators WHAT TO DO, not just what's happening."""
+    actions = []
+    for zm in zone_metrics:
+        zname = zm["zone"]
+        count = zm["count"]
+        ratio = count / max(1, max_capacity)
+
+        # Current danger actions
+        if ratio >= 1.0:
+            actions.append(f"IMMEDIATE: Close entry to {zname} - capacity exceeded ({count}/{max_capacity})")
+            actions.append(f"IMMEDIATE: Deploy security to {zname} to manage crowd flow")
+        elif ratio >= 0.8:
+            actions.append(f"CAUTION: {zname} approaching capacity ({count}/{max_capacity}) - prepare to restrict entry")
+
+    # Prediction-based actions
+    for zname, zpred in zone_predictions.items():
+        ttc = zpred.get("time_to_critical")
+        src = zpred.get("primary_inflow_source")
+        trend = zpred.get("risk_trend", "stable")
+
+        if ttc is not None and ttc < 120:
+            if src:
+                actions.append(f"PRE-EMPTIVE: Restrict inflow at {src} - {zname} critical in {ttc:.0f}s")
+            actions.append(f"PRE-EMPTIVE: Announce crowd redistribution on PA for {zname}")
+        elif trend == "rapidly_increasing":
+            actions.append(f"WATCH: {zname} density rising fast - standby to restrict entry")
+
+    if not actions:
+        actions.append("ALL CLEAR: All zones within safe limits. Continue monitoring.")
+
+    return actions

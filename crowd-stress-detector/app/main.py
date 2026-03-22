@@ -16,6 +16,7 @@ from app.theme import apply_dark_theme
 from app.ui import (
     render_alerts,
     render_metrics_header,
+    render_operator_actions,
     render_recommendations,
     render_trend_charts,
     render_zone_predictions,
@@ -23,9 +24,15 @@ from app.ui import (
 )
 from core.config import APP_TITLE, VIDEO_EXTENSIONS
 from core.export import build_session_pdf
+from core.recommendations import build_recommendations
 from core.utils import save_uploaded_file
 from core.video_processor import init_live_state, live_state_snapshot, process_live_frame, process_video_file
 from core.zones import build_zones_from_normalized, default_zone_templates
+
+try:
+    from core.recommendations import build_operator_actions
+except ImportError:
+    build_operator_actions = None
 
 
 def _sample_video_options() -> list[Path]:
@@ -39,22 +46,34 @@ def _sample_video_options() -> list[Path]:
 
 
 def _sidebar_controls() -> dict[str, Any]:
-    st.sidebar.header("Processing Controls")
-    show_heatmap = st.sidebar.toggle("Enable heatmap overlay", value=True)
-    enable_zones = st.sidebar.toggle("Enable zone analysis", value=True)
-    show_trends = st.sidebar.toggle("Show trend charts", value=True)
-    enable_multi_camera = st.sidebar.toggle("Mock multi-camera mode", value=False)
-    confidence = st.sidebar.slider("Detection confidence", min_value=0.1, max_value=0.9, value=0.35, step=0.05)
-    sample_stride = st.sidebar.slider("Frame sampling stride", min_value=1, max_value=5, value=1, step=1)
-    live_speed = st.sidebar.select_slider("Live playback speed", options=["1x", "2x", "4x"], value="1x")
+    st.sidebar.markdown("### Operator Controls")
+    max_capacity = st.sidebar.slider("Zone capacity limit", min_value=3, max_value=50, value=10, step=1,
+                                      help="Alert when zone reaches 80% of this limit")
+    whole_frame_zone = st.sidebar.toggle("Whole frame as single zone", value=True,
+                                          help="Monitor entire camera as one zone. Turn off for custom zones.")
+    enable_zones = st.sidebar.toggle("Show zones", value=True)
+    show_heatmap = st.sidebar.toggle("Heatmap overlay", value=True)
+    show_boxes = st.sidebar.toggle("Detail mode", value=False,
+                                    help="Show detection boxes with IDs and prediction details")
+    show_trends = st.sidebar.toggle("Trend charts", value=True)
+
+    with st.sidebar.expander("Advanced", expanded=False):
+        confidence = st.slider("Detection confidence", min_value=0.1, max_value=0.9, value=0.35, step=0.05)
+        sample_stride = st.slider("Frame stride", min_value=1, max_value=5, value=1, step=1)
+        enable_multi_camera = st.toggle("Multi-camera mock", value=False)
+        live_speed = st.select_slider("Playback speed", options=["1x", "2x", "4x"], value="1x")
+
     return {
         "show_heatmap": show_heatmap,
         "enable_zones": enable_zones,
         "show_trends": show_trends,
         "enable_multi_camera": enable_multi_camera,
         "confidence": confidence,
+        "max_capacity": max_capacity,
+        "show_boxes": show_boxes,
         "sample_stride": sample_stride,
         "live_speed": live_speed,
+        "whole_frame_zone": whole_frame_zone,
     }
 
 
@@ -160,7 +179,8 @@ def _zone_editor_from_frame(video_key: str, frame_bgr, initial_zones: list[dict[
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide", initial_sidebar_state="expanded")
     apply_dark_theme()
-    st.title(APP_TITLE)
+
+    st.markdown(f"## {APP_TITLE}")
     st.caption("Predictive crowd intelligence for safer venues.")
 
     controls = _sidebar_controls()
@@ -171,6 +191,8 @@ def main() -> None:
     input_path = None
     source_key = "unknown_source"
     normalized_zones = None
+    if controls.get("whole_frame_zone", True):
+        normalized_zones = [{"name": "Camera View", "type": "bottleneck", "rect": (0.0, 0.0, 1.0, 1.0)}]
     session = st.session_state.get("last_session")
 
     if source_mode == "Uploaded Video":
@@ -186,11 +208,10 @@ def main() -> None:
             selected_sample_path = next((p for p in sample_videos if p.name == selected_sample_name), None)
 
         if uploaded_video is None and selected_sample_path is None:
-            st.info("No video loaded yet. Upload a crowd video (or pick a sample).")
-            st.subheader("Ready State")
+            st.info("Upload a crowd video or select a sample to begin analysis.")
             c1, c2, c3 = st.columns(3)
-            c1.metric("Current Crowd Stress Risk", "0.00")
-            c2.metric("Predicted Crowd Stress Risk", "0.00")
+            c1.metric("Current Risk", "0.00")
+            c2.metric("Predicted Risk", "0.00")
             c3.metric("Peak People", "0")
             return
 
@@ -211,15 +232,13 @@ def main() -> None:
             st.session_state.pop("uploaded_video_path", None)
         source_key = input_path.name if input_path is not None else "uploaded_source"
 
-        # Zone editor bypassed — uses config defaults directly
-        # To re-enable: uncomment below and remove pass
         if controls["enable_zones"] and input_path is not None:
-            pass  # normalized_zones = _zone_editor(source_key, input_path)
+            pass
 
-        process_btn = st.button("Process Session", type="primary")
+        process_btn = st.button("Process Session", type="primary", use_container_width=True)
         if process_btn:
             st.session_state["last_session"] = None
-            with st.spinner("Analyzing crowd dynamics in live mode..."):
+            with st.spinner("Analyzing crowd dynamics..."):
                 processor_args = {
                     "input_path": input_path,
                     "root_dir": ROOT_DIR,
@@ -228,6 +247,8 @@ def main() -> None:
                     "show_trends": controls["show_trends"],
                     "enable_multi_camera": controls["enable_multi_camera"],
                     "confidence": controls["confidence"],
+                    "show_boxes": controls["show_boxes"],
+                    "max_capacity": controls["max_capacity"],
                     "sample_stride": controls["sample_stride"],
                     "normalized_zones": normalized_zones,
                 }
@@ -252,8 +273,7 @@ def main() -> None:
                     progress_text.caption(
                         f"Frame {frame_idx}/{max(total_frames, frame_idx)} | "
                         f"People: {people_count} | "
-                        f"Current Crowd Stress Risk: {current_risk:.2f} | "
-                        f"Predicted: {predicted_risk:.2f}"
+                        f"Risk: {current_risk:.2f}"
                     )
 
                 try:
@@ -261,14 +281,11 @@ def main() -> None:
                 except TypeError as exc:
                     if "frame_callback" in str(exc):
                         session = process_video_file(**processor_args)
-                        st.warning("Live feed callback was unavailable in the current run. Please refresh the page once.")
                     else:
                         raise
                 progress_bar.progress(1.0)
                 progress_text.caption("Processing complete.")
             st.session_state["last_session"] = session
-        else:
-            st.caption("Adjust zones, then click Process Session.")
 
     else:
         stream_source = st.text_input(
@@ -290,7 +307,6 @@ def main() -> None:
         if c3.button("Resume"):
             st.session_state["live_paused"] = False
 
-        st.caption("Pause stops frame ingest and all crowd analysis updates. Resume continues analysis.")
         if st.session_state.get("live_running") and st.session_state.get("live_state") is not None:
             state = st.session_state["live_state"]
             frame_holder = st.empty()
@@ -301,9 +317,7 @@ def main() -> None:
                     frame_holder.image(frame_rgb, channels="RGB", use_container_width=True)
                     st.caption(
                         f"Live Frame {payload['frame_idx']} | People: {payload['people_count']} | "
-                        f"Current Crowd Stress Risk: {payload['current_risk']:.2f} | "
-                        f"Predicted: {payload['predicted_risk']:.2f} | "
-                        f"Pred. Bottleneck: {payload.get('predicted_bottleneck_risk', 0.0):.2f}"
+                        f"Risk: {payload['current_risk']:.2f}"
                     )
                 st.session_state["last_session"] = live_state_snapshot(state)
                 time.sleep(0.04 if live_speed == "1x" else 0.02 if live_speed == "2x" else 0.01)
@@ -321,38 +335,183 @@ def main() -> None:
                     )
         session = st.session_state.get("last_session")
 
+    # ─── Results Dashboard ──────────────────────────────────────
     if session is None:
         return
 
+    st.markdown("---")
+
+    # ── Critical alert popup with shake ──
+    zone_preds_check = session.get("summary", {}).get("zone_predictions", {})
+    critical_zones = []
+    for zn, zp in zone_preds_check.items():
+        ttc = zp.get("time_to_critical")
+        if zp.get("risk_trend") == "rapidly_increasing" or (ttc is not None and ttc < 120):
+            critical_zones.append((zn, zp))
+
+    if critical_zones:
+        zn, zp = critical_zones[0]
+        src = zp.get("primary_inflow_source", "adjacent zone")
+        ttc = zp.get("time_to_critical")
+        ttc_str = f"in {ttc:.0f}s" if ttc else "imminently"
+
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
+            border: 2px solid #ef4444;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            animation: pulse-border 2s ease-in-out infinite;
+        ">
+            <div style="font-family: 'Inter',sans-serif; font-weight: 800; font-size: 1.1rem; color: #ef4444; margin-bottom: 6px;">
+                CRITICAL — {zn} approaching capacity {ttc_str}
+            </div>
+            <div style="font-family: 'Inter',sans-serif; font-size: 0.9rem; color: #e8ecf4; margin-bottom: 10px;">
+                Restrict inflow at <strong>{src}</strong> — Deploy security to <strong>{zn}</strong> — Announce redistribution on PA
+            </div>
+            <div style="font-family: 'JetBrains Mono',monospace; font-size: 0.75rem; color: #5a6a80;">
+                Predicted: {zp.get('predicted_density', 0):.0f} people | Trend: {zp.get('risk_trend', 'unknown')} | Net flow: {zp.get('net_flow', 0):+.1f}
+            </div>
+        </div>
+        <style>
+            @keyframes pulse-border {{
+                0%, 100% {{ border-color: #ef4444; }}
+                50% {{ border-color: #991b1b; }}
+            }}
+        </style>
+        """, unsafe_allow_html=True)
+
+        if st.button("ACKNOWLEDGE ALERT — DISPATCH SECURITY", key="ack_alert", type="primary", use_container_width=True):
+            st.markdown("""
+            <style>
+                @keyframes violent-shake {
+                    0% { transform: translate(0) rotate(0deg); }
+                    2% { transform: translate(-12px, 8px) rotate(-2deg); }
+                    4% { transform: translate(12px, -8px) rotate(2deg); }
+                    6% { transform: translate(-10px, -12px) rotate(-2.5deg); }
+                    8% { transform: translate(10px, 12px) rotate(2.5deg); }
+                    10% { transform: translate(-12px, -6px) rotate(-1.5deg); }
+                    12% { transform: translate(12px, 6px) rotate(1.5deg); }
+                    14% { transform: translate(-8px, 12px) rotate(-3deg); }
+                    16% { transform: translate(8px, -12px) rotate(3deg); }
+                    18% { transform: translate(-12px, 10px) rotate(-2deg); }
+                    20% { transform: translate(12px, -10px) rotate(2deg); }
+                    22% { transform: translate(-10px, -8px) rotate(-2.5deg); }
+                    24% { transform: translate(10px, 8px) rotate(2.5deg); }
+                    26% { transform: translate(-8px, 12px) rotate(-1.5deg); }
+                    28% { transform: translate(8px, -12px) rotate(1.5deg); }
+                    30% { transform: translate(-12px, 6px) rotate(-3deg); }
+                    32% { transform: translate(12px, -6px) rotate(3deg); }
+                    34% { transform: translate(-10px, 10px) rotate(-2deg); }
+                    36% { transform: translate(10px, -10px) rotate(2deg); }
+                    38% { transform: translate(-8px, -12px) rotate(-2.5deg); }
+                    40% { transform: translate(8px, 12px) rotate(2.5deg); }
+                    42% { transform: translate(-12px, -8px) rotate(-1.5deg); }
+                    44% { transform: translate(12px, 8px) rotate(1.5deg); }
+                    46% { transform: translate(-10px, 6px) rotate(-3deg); }
+                    48% { transform: translate(10px, -6px) rotate(3deg); }
+                    50% { transform: translate(-8px, 10px) rotate(-2deg); }
+                    52% { transform: translate(8px, -10px) rotate(2deg); }
+                    54% { transform: translate(-12px, -6px) rotate(-2.5deg); }
+                    56% { transform: translate(12px, 6px) rotate(2.5deg); }
+                    58% { transform: translate(-10px, 12px) rotate(-1.5deg); }
+                    60% { transform: translate(10px, -12px) rotate(1.5deg); }
+                    62% { transform: translate(-8px, 8px) rotate(-3deg); }
+                    64% { transform: translate(8px, -8px) rotate(3deg); }
+                    66% { transform: translate(-12px, 10px) rotate(-2deg); }
+                    68% { transform: translate(12px, -10px) rotate(2deg); }
+                    70% { transform: translate(-10px, -12px) rotate(-2.5deg); }
+                    72% { transform: translate(10px, 12px) rotate(2.5deg); }
+                    74% { transform: translate(-8px, -6px) rotate(-1.5deg); }
+                    76% { transform: translate(8px, 6px) rotate(1.5deg); }
+                    78% { transform: translate(-12px, 12px) rotate(-2deg); }
+                    80% { transform: translate(10px, -8px) rotate(1.5deg); }
+                    82% { transform: translate(-8px, 6px) rotate(-1deg); }
+                    84% { transform: translate(6px, -6px) rotate(1deg); }
+                    86% { transform: translate(-6px, 4px) rotate(-0.5deg); }
+                    88% { transform: translate(4px, -4px) rotate(0.5deg); }
+                    90% { transform: translate(-4px, 3px) rotate(-0.3deg); }
+                    92% { transform: translate(3px, -3px) rotate(0.3deg); }
+                    94% { transform: translate(-2px, 2px) rotate(-0.2deg); }
+                    96% { transform: translate(2px, -2px) rotate(0.2deg); }
+                    98% { transform: translate(-1px, 1px) rotate(-0.1deg); }
+                    100% { transform: translate(0) rotate(0deg); }
+                }
+                @keyframes red-strobe {
+                    0%, 100% { background: rgba(239, 68, 68, 0.0); }
+                    50% { background: rgba(239, 68, 68, 0.15); }
+                }
+                [data-testid="stAppViewContainer"] {
+                    animation: violent-shake 5s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+                }
+                [data-testid="stAppViewContainer"]::before {
+                    content: '';
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(239, 68, 68, 0.0);
+                    animation: red-strobe 0.15s ease-in-out 20;
+                    pointer-events: none;
+                    z-index: 99999;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            st.toast("Alert acknowledged. Security team dispatched.", icon="🚨")
+
+    # ── Row 1: Metrics ──
     render_metrics_header(session["summary"])
 
-    processed_path = session.get("processed_video_path")
-    if processed_path:
-        st.subheader("Processed Video")
-        st.video(str(processed_path))
+    # ── Row 2: Video + Actions ──
+    vid_col, action_col = st.columns([2.2, 1], gap="large")
 
-    col_left, col_right = st.columns([1.2, 1.0], gap="large")
-    with col_left:
-        render_alerts(session["alerts"])
-        render_recommendations(session["recommendations"])
-    with col_right:
-        # Use peak zone snapshots if available, fall back to latest
-        zone_data = session.get("peak_zone_snapshots", session["zone_snapshots"])
-        render_zone_table(zone_data)
+    with vid_col:
+        processed_path = session.get("processed_video_path")
+        if processed_path:
+            st.subheader("Processed Feed")
+            st.video(str(processed_path))
 
-    # Render bi-modal zone predictions
-    zone_preds = session.get("summary", {}).get("zone_predictions", {})
-    if zone_preds:
-        render_zone_predictions(zone_preds)
+    with action_col:
+        zone_preds = session.get("summary", {}).get("zone_predictions", {})
+        zone_data = session.get("peak_zone_snapshots", session.get("zone_snapshots", []))
 
+        if build_operator_actions is not None and zone_data:
+            actions = build_operator_actions(zone_data, zone_preds, controls.get("max_capacity", 10))
+            render_operator_actions(actions)
+        else:
+            render_alerts(session.get("alerts", []))
+
+        render_recommendations(session.get("recommendations", []))
+
+    # ── Row 3: Zones + Predictions ──
+    zone_col, pred_col = st.columns([1, 1.2], gap="large")
+
+    with zone_col:
+        zone_display = session.get("peak_zone_snapshots", session.get("zone_snapshots", []))
+        render_zone_table(zone_display)
+
+    with pred_col:
+        zone_preds = session.get("summary", {}).get("zone_predictions", {})
+        if zone_preds:
+            render_zone_predictions(zone_preds)
+
+    # ── Row 4: Alert log ──
+    if build_operator_actions is not None:
+        alerts = session.get("alerts", [])
+        if alerts:
+            with st.expander(f"Alert Log ({len(alerts)} alerts)", expanded=False):
+                render_alerts(alerts)
+
+    # ── Row 5: Trends ──
     if controls["show_trends"]:
-        render_trend_charts(session["timeline_df"])
+        render_trend_charts(session.get("timeline_df"))
 
+    # ── Export ──
+    st.markdown("---")
     report_bytes = build_session_pdf(session)
     st.download_button(
-        "Download PDF Session Summary",
+        "Download PDF Report",
         data=report_bytes,
-        file_name=f"{session['summary']['session_id']}_summary.pdf",
+        file_name=f"{session['summary']['session_id']}_report.pdf",
         mime="application/pdf",
     )
 

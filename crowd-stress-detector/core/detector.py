@@ -56,11 +56,12 @@ class PersonDetector:
         results = self.model.track(
             frame,
             verbose=False,
-            conf=max(confidence, 0.25),
-            iou=0.3,
-            imgsz=1280,
+            conf=max(confidence, 0.15),
+            iou=0.45,
+            imgsz=1920,
             classes=[PERSON_CLASS_ID],
             persist=True,
+            augment=True,
             tracker=TRACKER_CONFIG,
             max_det=TRACK_MAX_DETECTIONS,
         )

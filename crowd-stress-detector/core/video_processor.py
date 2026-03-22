@@ -17,7 +17,7 @@ from core.prediction import BiModalPredictor
 from core.recommendations import build_alerts, build_recommendations
 from core.risk import compute_crowd_stress_risk, predict_crowd_stress_risk
 from core.utils import ensure_dir
-from core.zones import build_default_zones, build_zones_from_normalized, compute_zone_metrics, draw_zones
+from core.zones import build_default_zones, build_zones_from_normalized, compute_zone_metrics, draw_zones, draw_warning_banner, draw_status_strip, draw_prediction_detail
 
 
 def _open_video_writer(path: Path, fps: float, frame_size: tuple[int, int]) -> cv2.VideoWriter:
@@ -34,6 +34,8 @@ def process_video_file(
     enable_multi_camera: bool = False,
     confidence: float = 0.35,
     sample_stride: int = 1,
+    show_boxes: bool = False,
+    max_capacity: int = 10,
     frame_callback: Any | None = None,
     normalized_zones: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -170,42 +172,42 @@ def process_video_file(
         latest_recommendations = build_recommendations(latest_alerts, zone_metrics)
         latest_zone_metrics = zone_metrics
 
-        annotated = draw_detections(frame, tracked_people)
+        annotated = draw_detections(frame, tracked_people) if show_boxes else frame.copy()
         if show_heatmap and centroids:
             heat = build_heatmap_overlay(frame.shape, centroids)
             annotated = overlay_heatmap(annotated, heat)
+
+        # Compute per-zone direction for display
+        zone_directions = {}
+        for zone in zones:
+            zname = zone["name"]
+            x1z, y1z, x2z, y2z = zone["rect"]
+            zone_people = [p for p in tracked_people if x1z <= p["centroid"][0] <= x2z and y1z <= p["centroid"][1] <= y2z]
+            dir_counts = {}
+            for p in zone_people:
+                traj = p.get("trajectory", [])
+                if len(traj) >= 2:
+                    dx = traj[-1][0] - traj[-2][0]
+                    dy = traj[-1][1] - traj[-2][1]
+                    if abs(dx) < 2 and abs(dy) < 2:
+                        d = "STILL"
+                    elif abs(dx) >= abs(dy):
+                        d = "EAST" if dx > 0 else "WEST"
+                    else:
+                        d = "SOUTH" if dy > 0 else "NORTH"
+                    dir_counts[d] = dir_counts.get(d, 0) + 1
+            if dir_counts:
+                zone_directions[zname] = max(dir_counts, key=dir_counts.get)
+
         if zones:
-            draw_zones(annotated, zones)
+            draw_zones(annotated, zones, zone_metrics=zone_metrics, max_capacity=max_capacity, dominant_directions=zone_directions)
 
-        cv2.putText(
-            annotated,
-            f"Crowd Stress Risk: {current_risk:.2f} | Predicted: {predicted_risk:.2f}",
-            (16, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-
-        # Draw bi-modal prediction info on frame
-        y_offset = 55
-        for zname, zpred in zone_predictions.items():
-            ttc = zpred.get("time_to_critical")
-            ttc_str = f"{ttc:.0f}s" if ttc is not None else "safe"
-            trend = zpred.get("risk_trend", "stable")
-            color = (0, 255, 0) if trend == "stable" else (0, 165, 255) if "increasing" in trend else (0, 0, 255) if "rapidly" in trend else (200, 200, 200)
-            cv2.putText(
-                annotated,
-                f"{zname}: pred={zpred.get('predicted_density', 0):.0f} | ttc={ttc_str} | {trend}",
-                (16, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                color,
-                1,
-                cv2.LINE_AA,
-            )
-            y_offset += 18
+        # --- Operator HUD ---
+        danger_zones = [zm["zone"] for zm in zone_metrics if zm["count"] >= max_capacity * 0.8]
+        y_cursor = draw_warning_banner(annotated, danger_zones, frame_width, zone_predictions=zone_predictions)
+        y_cursor = draw_status_strip(annotated, people_count, zone_metrics, max_capacity, frame_width, y_start=y_cursor)
+        if show_boxes:  # Detail mode: show prediction info
+            draw_prediction_detail(annotated, zone_predictions, y_start=y_cursor)
 
         if enable_multi_camera:
             resized = cv2.resize(annotated, (frame_width // 2, frame_height // 2))
@@ -401,6 +403,8 @@ def process_live_frame(
     state["last_frame_bgr"] = frame.copy()
 
     tracked_people = state["detector"].track_people(frame, confidence=controls["confidence"])
+    sahi_detections = state["detector"].detect_people(frame, confidence=controls["confidence"])
+    people_count = max(len(tracked_people), len(sahi_detections))
     _update_track_history(state["track_history"], tracked_people)
     _update_tracking_quality(state["tracking_quality"], tracked_people)
     direction_counts = _direction_distribution(tracked_people)
@@ -468,41 +472,43 @@ def process_live_frame(
     state["latest_recommendations"] = build_recommendations(state["latest_alerts"], zone_metrics)
     state["latest_zone_metrics"] = zone_metrics
 
-    annotated = draw_detections(frame, tracked_people)
+    annotated = draw_detections(frame, tracked_people) if controls.get("show_boxes", False) else frame.copy()
     if controls["show_heatmap"] and centroids:
         heat = build_heatmap_overlay(frame.shape, centroids)
         annotated = overlay_heatmap(annotated, heat)
-    if state["zones"]:
-        draw_zones(annotated, state["zones"])
-    cv2.putText(
-        annotated,
-        f"Crowd Stress Risk: {current_risk:.2f} | Predicted: {predicted_risk:.2f}",
-        (16, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
 
-    # Draw bi-modal prediction info on frame
-    y_offset = 55
-    for zname, zpred in zone_predictions.items():
-        ttc = zpred.get("time_to_critical")
-        ttc_str = f"{ttc:.0f}s" if ttc is not None else "safe"
-        trend = zpred.get("risk_trend", "stable")
-        color = (0, 255, 0) if trend == "stable" else (0, 165, 255) if "increasing" in trend else (0, 0, 255) if "rapidly" in trend else (200, 200, 200)
-        cv2.putText(
-            annotated,
-            f"{zname}: pred={zpred.get('predicted_density', 0):.0f} | ttc={ttc_str} | {trend}",
-            (16, y_offset),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            color,
-            1,
-            cv2.LINE_AA,
-        )
-        y_offset += 18
+    # Compute per-zone direction for live display
+    zone_directions = {}
+    for zone in state["zones"]:
+        zname = zone["name"]
+        x1z, y1z, x2z, y2z = zone["rect"]
+        zone_people = [p for p in tracked_people if x1z <= p["centroid"][0] <= x2z and y1z <= p["centroid"][1] <= y2z]
+        dir_counts = {}
+        for p in zone_people:
+            traj = p.get("trajectory", [])
+            if len(traj) >= 2:
+                dx = traj[-1][0] - traj[-2][0]
+                dy = traj[-1][1] - traj[-2][1]
+                if abs(dx) < 2 and abs(dy) < 2:
+                    d = "STILL"
+                elif abs(dx) >= abs(dy):
+                    d = "EAST" if dx > 0 else "WEST"
+                else:
+                    d = "SOUTH" if dy > 0 else "NORTH"
+                dir_counts[d] = dir_counts.get(d, 0) + 1
+        if dir_counts:
+            zone_directions[zname] = max(dir_counts, key=dir_counts.get)
+
+    if state["zones"]:
+        draw_zones(annotated, state["zones"], zone_metrics=zone_metrics, max_capacity=controls.get("max_capacity", 10), dominant_directions=zone_directions)
+
+    # --- Operator HUD (live) ---
+    mc = controls.get("max_capacity", 10)
+    danger_zones = [zm["zone"] for zm in zone_metrics if zm["count"] >= mc * 0.8]
+    y_cursor = draw_warning_banner(annotated, danger_zones, state["frame_width"], zone_predictions=zone_predictions)
+    y_cursor = draw_status_strip(annotated, people_count, zone_metrics, mc, state["frame_width"], y_start=y_cursor)
+    if controls.get("show_boxes", False):  # Detail mode
+        draw_prediction_detail(annotated, zone_predictions, y_start=y_cursor)
 
     state["timeline_rows"].append(
         {

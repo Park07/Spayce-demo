@@ -4,7 +4,7 @@ APP_TITLE = "Crowd Stress Detector"
 VIDEO_EXTENSIONS = ["mp4", "mov", "avi", "mkv"]
 
 PERSON_CLASS_ID = 0
-YOLO_MODEL_NAME = "yolov8m.pt"
+YOLO_MODEL_NAME = "yolov8x.pt"
 TRACKER_CONFIG = "bytetrack.yaml"
 TRACK_MAX_DETECTIONS = 300
 
@@ -15,7 +15,7 @@ DEFAULT_ENTRY_ZONES = [
     {"name": "Gate B", "type": "entry", "rect": (0.0, 0.0, 0.35, 1.0)},
 ]
 DEFAULT_BOTTLENECK_ZONES = [
-    {"name": "Bottleneck C", "type": "bottleneck", "rect": (0.25, 0.0, 0.75, 1.0)},
+    {"name": "Bottleneck C", "type": "bottleneck", "rect": (0.20, 0.0, 0.75, 1.0)},
 ]
 
 HEATMAP_BLUR_KERNEL = (41, 41)
