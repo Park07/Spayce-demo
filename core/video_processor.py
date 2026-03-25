@@ -68,7 +68,7 @@ def process_video_file(
     processed_dir = ensure_dir(root_dir / "outputs" / "processed")
     session_id = uuid.uuid4().hex[:8]
     out_path = processed_dir / f"{input_path.stem}_{session_id}_processed.mp4"
-    writer = None
+    writer = _open_video_writer(out_path, fps, frame_size)
 
     timeline_rows: list[dict[str, Any]] = []
     all_anomalies: list[dict[str, Any]] = []
@@ -131,28 +131,35 @@ def process_video_file(
             csv_w = csv.writer(f)
             if write_header:
                 csv_w.writerow([
-                    "frame", "time_s", "people_count", "avg_speed",
+                    "frame", "time_s", "zone", "people_count", "avg_speed",
                     "density", "cluster_pressure",
                     "pred_density", "pred_slope", "pred_trend",
                     "pred_ttc", "pred_net_flow", "pred_spatial_pressure",
                     "current_risk", "predicted_risk", "model_trained", "training_loss",
                     "nn_prediction",
                 ])
-            zp = list(zone_predictions.values())[0] if zone_predictions else {}
             current_risk = 0
             pred_risk = 0
-            csv_w.writerow([
-                frame_idx, round(frame_idx / fps, 2), people_count, round(avg_speed, 3),
-                round(density, 5), round(cluster_pressure, 3),
-                round(zp.get("predicted_density", 0), 2),
-                round(zp.get("density_trend_slope", 0), 4),
-                zp.get("risk_trend", ""),
-                zp.get("time_to_critical", ""),
-                round(zp.get("net_flow", 0), 3),
-                round(zp.get("spatial_pressure", 0), 3),
-                round(current_risk, 4), round(pred_risk, 4),
-                zp.get("model_trained", ""), zp.get("training_loss", ""), zp.get("nn_prediction", ""),
-            ])
+            if zone_predictions:
+                for zname, zp in zone_predictions.items():
+                    csv_w.writerow([
+                        frame_idx, round(frame_idx / fps, 2), zname, people_count, round(avg_speed, 3),
+                        round(density, 5), round(cluster_pressure, 3),
+                        round(zp.get("predicted_density", 0), 2),
+                        round(zp.get("density_trend_slope", 0), 4),
+                        zp.get("risk_trend", ""),
+                        zp.get("time_to_critical", ""),
+                        round(zp.get("net_flow", 0), 3),
+                        round(zp.get("spatial_pressure", 0), 3),
+                        round(current_risk, 4), round(pred_risk, 4),
+                        zp.get("model_trained", ""), zp.get("training_loss", ""), zp.get("nn_prediction", ""),
+                    ])
+            else:
+                csv_w.writerow([
+                    frame_idx, round(frame_idx / fps, 2), "none", people_count, round(avg_speed, 3),
+                    round(density, 5), round(cluster_pressure, 3),
+                    0, 0, "", "", 0, 0, round(current_risk, 4), round(pred_risk, 4), "", "", "",
+                ])
 
         # Track peak zone metrics (busiest frame, not last frame)
         current_zone_total = sum(z["count"] for z in zone_metrics) if zone_metrics else 0
