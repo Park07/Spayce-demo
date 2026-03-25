@@ -202,9 +202,10 @@ def render_zone_predictions(zone_predictions: dict[str, dict[str, Any]]) -> None
                 <span class="zone-card-stat">Flow <strong>{net_flow:+.1f}</strong></span>
                 <span class="zone-card-stat" style="color:{ttc_color};">{ttc_text}</span>
             </div>
-            {"<div style='margin-top:6px; font-size:0.75rem; color:" + _MUTED + ";'>Inflow from " + src + "</div>" if src and zp.get("inflow_pressure", 0) > 0 else ""}
+                        </div>
             </div>""",
             unsafe_allow_html=True
+        
         )
 
 

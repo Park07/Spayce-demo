@@ -97,7 +97,7 @@ class PersonDetector:
         frame: np.ndarray,
         confidence: float = 0.15,
         frame_idx: int = 0,
-        sahi_interval: int = 3,
+        sahi_interval: int = 1,
     ) -> list[dict[str, Any]]:
         """Track people via YOLO, then fill detection gaps with cached SAHI results.
 

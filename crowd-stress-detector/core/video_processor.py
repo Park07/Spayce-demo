@@ -10,7 +10,8 @@ import pandas as pd
 import streamlink
 
 from core.anomaly import detect_anomalies
-from core.detector import PersonDetector, draw_detections
+from core.detector import draw_detections
+from core.p2pnet_detector import P2PNetDetector
 from core.heatmap import build_heatmap_overlay, overlay_heatmap
 from core.metrics import compute_avg_speed, compute_clustering_pressure, compute_direction_consistency, compute_people_density
 from core.prediction import BiModalPredictor
@@ -39,7 +40,7 @@ def process_video_file(
     frame_callback: Any | None = None,
     normalized_zones: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    detector = PersonDetector()
+    detector = P2PNetDetector()
     track_history: dict[int, list[tuple[int, int]]] = {}
 
     cap = cv2.VideoCapture(str(input_path))
@@ -96,9 +97,7 @@ def process_video_file(
             continue
 
         # --- MERGED DETECTION: tracker + SAHI gap-fill (cached every 3 frames) ---
-        tracked_people = detector.track_and_detect(
-            frame, confidence=confidence, frame_idx=frame_idx, sahi_interval=3
-        )
+        tracked_people = detector.detect_and_track(frame, confidence=confidence)
 
         _update_track_history(track_history, tracked_people)
         _update_tracking_quality(tracking_quality, tracked_people)
@@ -127,7 +126,11 @@ def process_video_file(
         if current_zone_total > peak_zone_total_count:
             peak_zone_total_count = current_zone_total
             peak_zone_metrics = [dict(z) for z in zone_metrics]
-            peak_zone_predictions = dict(zone_predictions)
+            # Only store peak predictions if predictor has warmed up
+            if zone_predictions and any(
+                zp.get("current_density", 0) > 0 for zp in zone_predictions.values()
+            ):
+                peak_zone_predictions = dict(zone_predictions)
 
         max_zone_risk = max((z["local_risk"] for z in zone_metrics), default=0.0)
         max_zone_density = max((z["local_density"] for z in zone_metrics), default=0.0)
@@ -311,7 +314,7 @@ def process_video_file(
         "lost_tracks": int(timeline_df["lost_tracks"].iloc[-1]),
         "recovered_tracks": int(timeline_df["recovered_tracks"].iloc[-1]),
         "tracking_stability": float(timeline_df["tracking_stability"].iloc[-1]),
-        "zone_predictions": peak_zone_predictions if peak_zone_predictions else latest_zone_predictions,
+        "zone_predictions": latest_zone_predictions if latest_zone_predictions else peak_zone_predictions,
         "flow_matrix": bimodal_predictor.get_flow_matrix() if zones else {},
     }
     return {
@@ -374,7 +377,7 @@ def init_live_state(
         "source": stream_source,
         "stream_url": stream_url,
         "cap": cap,
-        "detector": PersonDetector(),
+        "detector":  P2PNetDetector(),
         "track_history": {},
         "tracking_quality": _init_tracking_quality(),
         "flow_state": _init_flow_state(),
@@ -408,11 +411,8 @@ def process_live_frame(
     state["last_frame_bgr"] = frame.copy()
 
     # --- MERGED DETECTION: tracker + SAHI gap-fill (cached every 3 frames) ---
-    tracked_people = state["detector"].track_and_detect(
-        frame,
-        confidence=controls["confidence"],
-        frame_idx=state["frame_idx"],
-        sahi_interval=3,
+    tracked_people = state["detector"].detect_and_track(
+        frame, confidence=controls["confidence"]
     )
     people_count = len(tracked_people)
 
