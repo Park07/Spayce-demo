@@ -192,7 +192,7 @@ def main() -> None:
     source_key = "unknown_source"
     normalized_zones = None
     if controls.get("whole_frame_zone", True):
-        normalized_zones = [{"name": "Camera View", "type": "bottleneck", "rect": (0.0, 0.0, 1.0, 1.0)}]
+        from core.config import DEFAULT_GRID_ZONES; normalized_zones = DEFAULT_GRID_ZONES
     session = st.session_state.get("last_session")
 
     if source_mode == "Uploaded Video":
