@@ -468,7 +468,11 @@ def main() -> None:
         processed_path = session.get("processed_video_path")
         if processed_path:
             st.subheader("Processed Feed")
-            st.video(str(processed_path))
+            import os
+            # i anticipate merge conflict ahead but basically this is to stop generating vid each time
+            if processed_path and os.path.exists(str(processed_path)):
+                st.subheader("Processed Feed")
+                st.video(str(processed_path))
 
     with action_col:
         zone_preds = session.get("summary", {}).get("zone_predictions", {})

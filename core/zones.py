@@ -4,7 +4,6 @@ import cv2
 import numpy as np
 from core.config import DEFAULT_BOTTLENECK_ZONES, DEFAULT_ENTRY_ZONES, DEFAULT_EXIT_ZONES, DEFAULT_GRID_ZONES
 
-
 def default_zone_templates() -> list[dict[str, Any]]:
     return DEFAULT_GRID_ZONES
 
