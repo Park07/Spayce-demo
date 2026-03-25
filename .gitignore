@@ -1,0 +1,8 @@
+*.mp4
+outputs/
+__pycache__/
+*.pyc
+data/sample_videos/
+data/sample_videos/
+*.mp4
+outputs/
