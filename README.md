@@ -295,7 +295,7 @@ crowd-stress-detector/
 - **Joshua Yee** — Execution layer research
 - **Tushti Chaturvedi** — Market research, DCM analysis
 
-Built at FoundersHack Sydney 2026. Extended March 23-26, 2026.
+Built at FoundersHack Sydney 2026. Extended March 21-23, 2026.
 
 ---
 
